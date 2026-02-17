@@ -1,14 +1,15 @@
-{ config, pkgs, modulesPath, lib, currentSystemName, ... }: {
+{ config, pkgs, modulesPath, lib, ... }: {
   imports = [
     ./hardware/vm-aarch64-utm.nix
     ./vm-shared.nix
+    ../modules/attic.nix
   ];
 
   # Bridge mode on VM. Force DHCP on to override vm-shared default.
   networking.useDHCP = lib.mkForce true;
 
-  # Derive hostname from the flake config name (e.g. vm-aarch64-utm → nixos-utm)
-  networking.hostName = lib.mkForce (builtins.replaceStrings ["vm-aarch64-"] ["nixos-"] currentSystemName);
+  # Override hostname from vm-shared.nix
+  networking.hostName = lib.mkForce "nixos-utm-cache";
 
   # Qemu
   services.spice-vdagentd.enable = true;

@@ -22,8 +22,17 @@
     # this, use your own, or toss it. Its typically safe to use a binary cache
     # since the data inside is checksummed.
     settings = {
-      substituters = ["https://mitchellh-nixos-config.cachix.org"];
-      trusted-public-keys = ["mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ="];
+      substituters = [
+        "http://nixos-utm-cache.local:8080/main"
+        "https://nix-community.cachix.org"
+        "https://jj-vcs.cachix.org"
+        "https://mitchellh-nixos-config.cachix.org"
+      ];
+      trusted-public-keys = [
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+        "jj-vcs.cachix.org-1:sn2MddHr1ztFndbsGHMHV6xpMGHlHTb0FQGR/UMqybM="
+        "mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ="
+      ];
     };
   };
 
@@ -133,7 +142,7 @@
 
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
-  services.openssh.settings.PasswordAuthentication = true;
+  services.openssh.settings.PasswordAuthentication = true;  # 允许密码登录（首次部署需要）
   services.openssh.settings.PermitRootLogin = "no";
 
   # Enable flatpak. I don't use any flatpak apps but I do sometimes

@@ -131,6 +131,18 @@ configuration is used:
 export NIXNAME=vm-aarch64
 ```
 
+If network access is slow, you can enable your local proxy first (example for
+`127.0.0.1:7890`):
+
+```bash
+export http_proxy=http://127.0.0.1:7890
+export https_proxy=http://127.0.0.1:7890
+export all_proxy=socks5://127.0.0.1:7890
+```
+
+This repository's `Makefile` will automatically use these proxy variables on
+the relevant build/cache commands.
+
 **Other Hypervisors:** If you are using Parallels, use `vm-aarch64-prl`.
 If you are using UTM, use `vm-aarch64-utm`. Note that the environments aren't
 _exactly_ equivalent between hypervisors but they're very close and they

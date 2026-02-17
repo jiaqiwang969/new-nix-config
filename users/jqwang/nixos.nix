@@ -18,14 +18,15 @@
     # here, NOT in environment.systemPackages
   ];
 
-  users.users.mitchellh = {
+  users.users.jqwang = {
     isNormalUser = true;
-    home = "/home/mitchellh";
+    home = "/home/jqwang";
     extraGroups = [ "docker" "lxd" "wheel" ];
     shell = pkgs.fish;
-    hashedPassword = "$6$p5nPhz3G6k$6yCK0m3Oglcj4ZkUXwbjrG403LBZkfNwlhgrQAqOospGJXJZ27dI84CbIYBNsTgsoH650C1EBsbCKesSVPSpB1";
+    # Password hash for local login (recreate with `openssl passwd -6 ...`)
+    hashedPassword = "$6$su51z6mPtrkGFynP$hnYMhvMFCQXI7/ni7ET5tAtKXjOeKAXUzo.2X6AZRB3JqbAxehGK5t8ts1umK.mr2jGXAjOr2ex9./TjTyEbR/";
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGbTIKIPtrymhvtTvqbU07/e7gyFJqNS4S0xlfrZLOaY mitchellh"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjFka95UiprmSFObYiKafcW3QsIAEKz768N9crOVU7H jqwang@jqwangs-MacBook-Pro.local"
     ];
   };
 }

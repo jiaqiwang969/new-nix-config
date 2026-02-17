@@ -1,0 +1,250 @@
+# Default to the single UTM system we keep for this repo.
+NIXNAME ?= vm-aarch64-utm
+
+LOCAL_UTMCTL := $(firstword $(wildcard $(HOME)/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug/utmctl))
+ifeq ($(strip $(LOCAL_UTMCTL)),)
+LOCAL_UTMCTL := $(strip $(shell command -v utmctl 2>/dev/null))
+endif
+ifeq ($(strip $(LOCAL_UTMCTL)),)
+UTMCTL ?= /Applications/UTM.app/Contents/MacOS/utmctl
+else
+UTMCTL ?= $(LOCAL_UTMCTL)
+endif
+UTMCTL_WAIT_SECONDS ?= 90
+
+# NixOS ISO for bootstrapping (auto-detect from nixos-image/, resolve to absolute path).
+NIXOS_ISO ?= $(shell realpath "$(firstword $(wildcard $(MAKEFILE_DIR)/../nixos-image/*.iso))" 2>/dev/null)
+
+# VM hardware defaults
+UTM_MEMORY   ?= 4096
+UTM_CPUS     ?= 4
+UTM_DISK_MB  ?= 65536
+
+# SSH command (sshpass for password auth during bootstrap)
+UTM_SSH = sshpass -p root ssh $(SSH_OPTIONS) -p$(NIXPORT)
+
+# ---------------------------------------------------------------------------
+# VM lifecycle: create / destroy / ensure
+# ---------------------------------------------------------------------------
+
+# Check if a VM with NIXNAME exists (prints "yes" or "no").
+utm/_vm-exists = $(shell osascript -e 'tell application "UTM" to return (name of every virtual machine) contains "$(NIXNAME)"' 2>/dev/null)
+
+# Create a brand-new QEMU aarch64 VM with NixOS ISO attached.
+utm/create:
+	@if [ "$(call utm/_vm-exists)" = "true" ]; then \
+		echo "VM '$(NIXNAME)' already exists, skipping creation."; \
+		exit 0; \
+	fi; \
+	if [ -z "$(NIXOS_ISO)" ] || [ ! -f "$(NIXOS_ISO)" ]; then \
+		echo "ERROR: NixOS ISO not found. Set NIXOS_ISO or place an .iso in nixos-image/."; \
+		exit 1; \
+	fi; \
+	echo "Creating VM '$(NIXNAME)' ..."; \
+	osascript -e ' \
+		tell application "UTM" \
+			to make new virtual machine with properties \
+			{backend:qemu, configuration:{ \
+				name:"$(NIXNAME)", \
+				architecture:"aarch64", \
+				memory:$(UTM_MEMORY), \
+				cpu cores:$(UTM_CPUS), \
+				hypervisor:true, \
+				uefi:true, \
+				directory share mode:VirtFS, \
+				drives:{ \
+					{guest size:$(UTM_DISK_MB), interface:VirtIO}, \
+					{removable:true, interface:USB, source:POSIX file "$(NIXOS_ISO)"} \
+				}, \
+				network interfaces:{{mode:shared, hardware:"virtio-net-pci"}}, \
+				displays:{{hardware:"virtio-gpu-pci", dynamic resolution:true}} \
+			}}'; \
+	echo "VM '$(NIXNAME)' created."
+
+# Delete VM (stop first if running). Idempotent.
+utm/destroy:
+	@if [ "$(call utm/_vm-exists)" != "true" ]; then \
+		echo "VM '$(NIXNAME)' does not exist, nothing to destroy."; \
+		exit 0; \
+	fi; \
+	$(MAKE) utm/stop NIXNAME=$(NIXNAME) 2>/dev/null || true; \
+	echo "Deleting VM '$(NIXNAME)' ..."; \
+	osascript -e 'tell application "UTM" to delete virtual machine named "$(NIXNAME)"'; \
+	echo "VM '$(NIXNAME)' deleted."
+
+# Ensure VM exists and is stopped, ready for operations.
+utm/ensure:
+	@$(MAKE) utm/create NIXNAME=$(NIXNAME)
+	@STATUS=$$(osascript -e 'tell application "UTM" to return status of virtual machine named "$(NIXNAME)" as text' 2>/dev/null); \
+	if [ "$$STATUS" != "stopped" ]; then \
+		$(MAKE) utm/stop NIXNAME=$(NIXNAME); \
+	fi
+	@echo "VM '$(NIXNAME)' is ready (stopped)."
+
+# ---------------------------------------------------------------------------
+# VM control
+# ---------------------------------------------------------------------------
+
+# Start VM.
+utm/start:
+	@echo "Starting VM '$(NIXNAME)' ..."
+	@osascript -e 'tell application "UTM" to activate' -e 'delay 1' -e 'tell application "UTM" to start virtual machine named "$(NIXNAME)"'
+
+# Stop VM and wait until it is stopped.
+utm/stop:
+	@echo "Stopping VM '$(NIXNAME)' ..."
+	@osascript -e 'tell application "UTM" to stop virtual machine named "$(NIXNAME)" by force' 2>/dev/null || true
+	@for i in $$(seq 1 $(UTMCTL_WAIT_SECONDS)); do \
+		STATUS=$$(osascript -e 'tell application "UTM" to return status of virtual machine named "$(NIXNAME)" as text' 2>/dev/null); \
+		if [ "$$STATUS" = "stopped" ]; then \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+	@echo "VM '$(NIXNAME)' stopped."
+
+# Query VM status.
+utm/status:
+	@osascript -e 'tell application "UTM" to return status of virtual machine named "$(NIXNAME)" as text'
+
+# Wait for guest IP address (via QEMU guest agent).
+utm/ip:
+	@CURRENT_IP=""; \
+	for i in $$(seq 1 $(UTMCTL_WAIT_SECONDS)); do \
+		CURRENT_IP=$$(osascript -e ' \
+			tell application "UTM" \
+				to query ip virtual machine named "$(NIXNAME)"' 2>/dev/null \
+			| sed 's/, /\n/g' | head -1); \
+		if [ -n "$$CURRENT_IP" ]; then \
+			echo "$$CURRENT_IP"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "ERROR: Could not detect IP for '$(NIXNAME)'" >&2; \
+	exit 1
+
+# Remove removable drives (ISO/CD) via AppleScript, keep permanent disks.
+utm/remove-removable-drives:
+	@echo "Removing removable drives from '$(NIXNAME)' ..."
+	@printf '%s\n' \
+		'tell application "UTM"' \
+		'  set vm to virtual machine named "$(NIXNAME)"' \
+		'  set cfg to configuration of vm' \
+		'  set allDrives to drives of cfg' \
+		'  set keepDrives to {}' \
+		'  repeat with d in allDrives' \
+		'    if removable of d is false then' \
+		'      set end of keepDrives to {id:id of d}' \
+		'    end if' \
+		'  end repeat' \
+		'  update configuration vm with {drives:keepDrives}' \
+		'end tell' | osascript -
+	@echo "Removable drives removed from '$(NIXNAME)'."
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+
+# UTM bootstrap - stage 1: partition, install minimal NixOS, reboot.
+utm/bootstrap0:
+	$(UTM_SSH) root@$(NIXADDR) " \
+		parted /dev/vda -- mklabel gpt; \
+		parted /dev/vda -- mkpart primary 512MB -8GB; \
+		parted /dev/vda -- mkpart primary linux-swap -8GB 100\%; \
+		parted /dev/vda -- mkpart ESP fat32 1MB 512MB; \
+		parted /dev/vda -- set 3 esp on; \
+		sleep 1; \
+		mkfs.ext4 -L nixos /dev/vda1; \
+		mkswap -L swap /dev/vda2; \
+		mkfs.fat -F 32 -n boot /dev/vda3; \
+		sleep 1; \
+		mount /dev/disk/by-label/nixos /mnt; \
+		mkdir -p /mnt/boot; \
+		mount /dev/disk/by-label/boot /mnt/boot; \
+		nixos-generate-config --root /mnt; \
+		sed --in-place '/system\.stateVersion = .*/a \
+			nix.package = pkgs.nixVersions.latest;\n \
+			nix.extraOptions = \"experimental-features = nix-command flakes\";\n \
+			nix.settings.substituters = [\"http://nixos-utm-cache.local:8080/main\" \"https://nix-community.cachix.org\" \"https://jj-vcs.cachix.org\" \"https://mitchellh-nixos-config.cachix.org\"];\n \
+			nix.settings.trusted-public-keys = [\"nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=\" \"jj-vcs.cachix.org-1:sn2MddHr1ztFndbsGHMHV6xpMGHlHTb0FQGR/UMqybM=\" \"mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=\"];\n \
+			services.openssh.enable = true;\n \
+			services.openssh.settings.PasswordAuthentication = true;\n \
+			services.openssh.settings.PermitRootLogin = \"yes\";\n \
+			users.users.root.initialPassword = \"root\";\n \
+			users.users.jqwang = { isNormalUser = true; extraGroups = [ \"wheel\" ]; initialPassword = \"jqwang\"; };\n \
+			security.sudo.wheelNeedsPassword = false;\n \
+			services.spice-vdagentd.enable = true;\n \
+			environment.variables.LIBGL_ALWAYS_SOFTWARE = \"1\";\n \
+			nixpkgs.config.allowUnfree = true;\n \
+			nixpkgs.config.allowUnsupportedSystem = true;\n \
+		' /mnt/etc/nixos/configuration.nix; \
+		$(BOOTSTRAP0_AUTHKEYS); \
+		nixos-install --no-root-passwd && reboot; \
+	"
+
+# UTM bootstrap - stage 2: apply full nix-config.
+utm/bootstrap:
+	@echo "Stage 2: applying full nix-config ..."
+	@echo "Waiting for VM to come up ..."
+	@sleep 10
+	@until ping -c 1 -W 1 $(NIXADDR) > /dev/null 2>&1; do sleep 2; done
+	@echo "VM is reachable at $(NIXADDR)."
+	NIXUSER=root $(MAKE) vm/copy NIXADDR=$(NIXADDR) NIXNAME=$(NIXNAME)
+	NIXUSER=root $(MAKE) vm/switch NIXADDR=$(NIXADDR) NIXNAME=$(NIXNAME)
+	$(MAKE) vm/secrets NIXADDR=$(NIXADDR) NIXUSER=jqwang
+	@echo "Rebooting VM ..."
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) "reboot" || true
+
+# ---------------------------------------------------------------------------
+# Full automated pipeline: ensure VM -> bootstrap0 -> stop -> remove ISO
+#   -> start -> detect IP -> bootstrap
+# ---------------------------------------------------------------------------
+utm/bootstrap-all:
+	@$(MAKE) utm/ensure NIXNAME=$(NIXNAME)
+	@$(MAKE) utm/start NIXNAME=$(NIXNAME)
+	@echo "Waiting for VM to boot from ISO ..."
+	@sleep 15
+	@BOOT_IP=""; \
+	for i in $$(seq 1 $(UTMCTL_WAIT_SECONDS)); do \
+		BOOT_IP=$$(osascript -e ' \
+			tell application "UTM" \
+				to query ip virtual machine named "$(NIXNAME)"' 2>/dev/null \
+			| sed 's/, /\n/g' | head -1); \
+		if [ -n "$$BOOT_IP" ]; then break; fi; \
+		sleep 1; \
+	done; \
+	if [ -z "$$BOOT_IP" ]; then \
+		echo "ERROR: Cannot detect ISO-boot IP. Check VM network."; \
+		exit 1; \
+	fi; \
+	echo "ISO environment IP: $$BOOT_IP"; \
+	echo "Setting root password in ISO environment ..."; \
+	sshpass -p nixos ssh $(SSH_OPTIONS) -p$(NIXPORT) nixos@$$BOOT_IP "echo 'root:root' | sudo chpasswd" || \
+		(echo "Trying direct root login ..."; \
+		 sshpass -p root ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$$BOOT_IP "true"); \
+	echo "Running bootstrap0 ..."; \
+	$(MAKE) utm/bootstrap0 NIXADDR=$$BOOT_IP NIXNAME=$(NIXNAME); \
+	echo ""; \
+	echo "Stopping VM to remove ISO ..."; \
+	$(MAKE) utm/stop NIXNAME=$(NIXNAME); \
+	$(MAKE) utm/remove-removable-drives NIXNAME=$(NIXNAME); \
+	echo "Restarting VM from disk ..."; \
+	$(MAKE) utm/start NIXNAME=$(NIXNAME); \
+	echo "Waiting for VM to boot from disk ..."; \
+	sleep 10; \
+	DISK_IP=""; \
+	for i in $$(seq 1 $(UTMCTL_WAIT_SECONDS)); do \
+		DISK_IP=$$(osascript -e ' \
+			tell application "UTM" \
+				to query ip virtual machine named "$(NIXNAME)"' 2>/dev/null \
+			| sed 's/, /\n/g' | head -1); \
+		if [ -n "$$DISK_IP" ]; then break; fi; \
+		sleep 1; \
+	done; \
+	if [ -z "$$DISK_IP" ]; then \
+		echo "ERROR: Cannot detect disk-boot IP."; \
+		exit 1; \
+	fi; \
+	echo "Disk-boot IP: $$DISK_IP"; \
+	$(MAKE) utm/bootstrap NIXADDR=$$DISK_IP NIXNAME=$(NIXNAME)

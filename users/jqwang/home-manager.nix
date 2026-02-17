@@ -37,6 +37,57 @@ let
     '' else ''
     cat "$1" | col -bx | bat --language man --style plain
   ''));
+
+  # Safe rm wrapper: moves files to trash instead of deleting
+  safe-rm = (pkgs.writeShellScriptBin "rm" (if isDarwin then ''
+    # safe-rm: moves to macOS Trash instead of permanent delete
+    args=()
+    for arg in "$@"; do
+      case "$arg" in
+        -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
+          # skip rm flags, trash doesn't need them
+          ;;
+        --)
+          ;;
+        *)
+          args+=("$arg")
+          ;;
+      esac
+    done
+    if [ ''${#args[@]} -eq 0 ]; then
+      echo "rm (safe): no files specified" >&2
+      exit 1
+    fi
+    exec ${pkgs.darwin.trash}/bin/trash "''${args[@]}"
+  '' else ''
+    # On Linux, use a trash directory
+    TRASH_DIR="$HOME/.local/share/Trash/files"
+    mkdir -p "$TRASH_DIR"
+    args=()
+    for arg in "$@"; do
+      case "$arg" in
+        -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
+          ;;
+        --)
+          ;;
+        *)
+          args+=("$arg")
+          ;;
+      esac
+    done
+    if [ ''${#args[@]} -eq 0 ]; then
+      echo "rm (safe): no files specified" >&2
+      exit 1
+    fi
+    for f in "''${args[@]}"; do
+      mv -- "$f" "$TRASH_DIR/$(basename "$f").$(date +%s)"
+    done
+  ''));
+
+  # The real rm, only for admin use
+  real-rm = (pkgs.writeShellScriptBin "__purge_rm" ''
+    exec /bin/rm "$@"
+  '');
 in {
   # Home-manager 22.11 requires this be set. We never set it so we have
   # to use the old state version.
@@ -58,6 +109,9 @@ in {
   # per-project flakes sourced with direnv and nix-shell, so this is
   # not a huge list.
   home.packages = [
+    safe-rm
+    real-rm
+
     pkgs._1password-cli
     pkgs.asciinema
     pkgs.bat
@@ -76,6 +130,9 @@ in {
 
     pkgs.gopls
     pkgs.zigpkgs."0.15.2"
+
+    pkgs.rustc
+    pkgs.cargo
 
     pkgs.claude-code
     pkgs.codex
@@ -151,7 +208,7 @@ in {
       whitelist = {
         prefix= [
           "$HOME/code/go/src/github.com/hashicorp"
-          "$HOME/code/go/src/github.com/mitchellh"
+          "$HOME/code/go/src/github.com/jqwang"
         ];
 
         exact = ["$HOME/.envrc"];
@@ -168,6 +225,9 @@ in {
       "source ${inputs.theme-bobthefish}/functions/fish_title.fish"
       (builtins.readFile ./config.fish)
       "set -g SHELL ${pkgs.fish}/bin/fish"
+    ] ++ lib.optionals isDarwin [
+      # Add TeX Live to PATH on macOS
+      "fish_add_path /Library/TeX/texbin"
     ]));
 
     plugins = map (n: {
@@ -183,17 +243,17 @@ in {
   programs.git = {
     enable = true;
     signing = {
-      key = "523D5DC389D273BC";
-      signByDefault = true;
+      # Set this to your own GPG key ID (e.g. "0123ABCD") and enable if desired.
+      signByDefault = false;
     };
     settings = {
-      user.name = "Mitchell Hashimoto";
-      user.email = "m@mitchellh.com";
+      user.name = "jqwang";
+      user.email = "jiaqiwang969@gmail.com";
       branch.autosetuprebase = "always";
       color.ui = true;
       core.askPass = ""; # needs to be empty to use terminal for ask pass
       credential.helper = "store"; # want to make this more secure
-      github.user = "mitchellh";
+      github.user = "jqwang";
       push.default = "tracking";
       init.defaultBranch = "main";
       aliases = {
@@ -208,7 +268,7 @@ in {
     enable = true;
     env = { 
       GOPATH = "Documents/go";
-      GOPRIVATE = [ "github.com/mitchellh" ];
+      GOPRIVATE = [ "github.com/jqwang" ];
     };
   };
 

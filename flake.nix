@@ -1,5 +1,5 @@
 {
-  description = "NixOS systems and tools by mitchellh";
+  description = "NixOS systems and tools by jqwang";
 
   inputs = {
     # Pin our primary nixpkgs repository. This is the main nixpkgs repository
@@ -49,7 +49,6 @@
     # Other packages
     jujutsu.url = "github:martinvonz/jj";
     zig.url = "github:mitchellh/zig-overlay";
-
     # Non-flakes
     theme-bobthefish.url = "github:oh-my-fish/theme-bobthefish/e3b4d4eafc23516e35f162686f08a42edf844e40";
     theme-bobthefish.flake = false;
@@ -72,6 +71,12 @@
         # Want the latest version of these
         claude-code = inputs.nixpkgs-unstable.legacyPackages.${prev.system}.claude-code;
         nushell = inputs.nixpkgs-unstable.legacyPackages.${prev.system}.nushell;
+        # Builds from the upstream jj input can run a long/failing test
+        # suite on some systems, so skip checks here to avoid switch noise.
+        jujutsu = prev.jujutsu.overrideAttrs (_: {
+          doCheck = false;
+          doInstallCheck = false;
+        });
 
         ibus = ibus_stable;
         ibus_stable = inputs.nixpkgs.legacyPackages.${prev.system}.ibus;
@@ -86,33 +91,38 @@
   in {
     nixosConfigurations.vm-aarch64 = mkSystem "vm-aarch64" {
       system = "aarch64-linux";
-      user   = "mitchellh";
+      user   = "jqwang";
     };
 
     nixosConfigurations.vm-aarch64-prl = mkSystem "vm-aarch64-prl" rec {
       system = "aarch64-linux";
-      user   = "mitchellh";
+      user   = "jqwang";
     };
 
     nixosConfigurations.vm-aarch64-utm = mkSystem "vm-aarch64-utm" rec {
       system = "aarch64-linux";
-      user   = "mitchellh";
+      user   = "jqwang";
+    };
+
+    nixosConfigurations.vm-aarch64-utm-cache = mkSystem "vm-aarch64-utm-cache" rec {
+      system = "aarch64-linux";
+      user   = "jqwang";
     };
 
     nixosConfigurations.vm-intel = mkSystem "vm-intel" rec {
       system = "x86_64-linux";
-      user   = "mitchellh";
+      user   = "jqwang";
     };
 
     nixosConfigurations.wsl = mkSystem "wsl" {
       system = "x86_64-linux";
-      user   = "mitchellh";
+      user   = "jqwang";
       wsl    = true;
     };
 
     darwinConfigurations.macbook-pro-m1 = mkSystem "macbook-pro-m1" {
       system = "aarch64-darwin";
-      user   = "mitchellh";
+      user   = "jqwang";
       darwin = true;
     };
   };

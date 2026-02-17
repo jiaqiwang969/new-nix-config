@@ -124,6 +124,18 @@ function __bobthefish_prompt_nix -S -d 'Display current nix environment'
 end
 
 #-------------------------------------------------------------------------------
+# Anthropic API
+#-------------------------------------------------------------------------------
+if test -f $HOME/.config/anthropic.env
+    while read -l line
+        if test -n "$line"; and not string match -q '#*' $line
+            set -l kv (string split -m 1 '=' $line)
+            set -gx $kv[1] $kv[2]
+        end
+    end < $HOME/.config/anthropic.env
+end
+
+#-------------------------------------------------------------------------------
 # Vars
 #-------------------------------------------------------------------------------
 # Modify our path to include our Go binaries
