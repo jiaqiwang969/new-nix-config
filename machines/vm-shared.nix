@@ -122,15 +122,20 @@
   ];
 
   # Our default non-specialised desktop environment.
+  # Use KDE Plasma 6 + SDDM (X11) as default — GNOME Wayland crashes on aarch64.
   services.xserver = lib.mkIf (config.specialisation != {}) {
     enable = true;
     xkb.layout = "us";
   };
-  services.desktopManager = lib.mkIf (config.specialisation != {}) {
-    gnome.enable = true;
-  };
   services.displayManager = lib.mkIf (config.specialisation != {}) {
-    gdm.enable = true;
+    sddm.enable = true;
+  };
+  services.desktopManager = lib.mkIf (config.specialisation != {}) {
+    plasma6.enable = true;
+  };
+  xdg.portal = lib.mkIf (config.specialisation != {}) {
+    enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
   };
 
   # Some programs need SUID wrappers, can be configured further or are

@@ -24,7 +24,7 @@
     extraGroups = [ "docker" "lxd" "wheel" ];
     shell = pkgs.fish;
     # Password hash for local login (recreate with `openssl passwd -6 ...`)
-    hashedPassword = "$6$su51z6mPtrkGFynP$hnYMhvMFCQXI7/ni7ET5tAtKXjOeKAXUzo.2X6AZRB3JqbAxehGK5t8ts1umK.mr2jGXAjOr2ex9./TjTyEbR/";
+    hashedPassword = "$6$/vVYppRJz7JvDE5m$HgiOTUq6foeYud/qnX9iOzuewEP5/sQ/epaUXlCngs1P/CE2uh7pulWpqxQMeSdeiQW6QDmxc5XSCTmua7kK0.";
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjFka95UiprmSFObYiKafcW3QsIAEKz768N9crOVU7H jqwang@jqwangs-MacBook-Pro.local"
     ];

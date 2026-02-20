@@ -165,8 +165,11 @@ in {
     PAGER = "less -FirSwX";
     MANPAGER = "${manpager}/bin/manpager";
 
-    AMP_API_KEY = "op://Private/Amp_API/credential";
-    OPENAI_API_KEY = "op://Private/OpenAPI_Personal/credential";
+    OPENAI_API_KEY = "op://Personal/OpenAPI_Personal/credential";
+    HF_TOKEN = "op://Personal/HuggingFace/credential";
+    ANTHROPIC_API_KEY = "op://Personal/Anthropic/api_key";
+    ANTHROPIC_AUTH_TOKEN = "op://Personal/Anthropic/api_key";
+    ANTHROPIC_BASE_URL = "op://Personal/Anthropic/base_url";
   } // (if isDarwin then {
     # See: https://github.com/NixOS/nixpkgs/issues/390751
     DISPLAY = "nixpkgs-390751";

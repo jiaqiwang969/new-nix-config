@@ -3,6 +3,9 @@ NIXADDR ?= unset
 NIXPORT ?= 22
 NIXUSER ?= jqwang
 
+# IP of the Attic cache VM (for /etc/hosts injection before avahi is available)
+CACHE_ADDR ?= 192.168.64.13
+
 # Get the path to this Makefile and directory
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
@@ -19,6 +22,21 @@ SSH_OPTIONS=-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
 # Read the first available public key from common locations and
 # inject it during bootstrap0 (so stage 2 can use key auth immediately).
 SSH_PUBLIC_KEY_PATH ?=
+SSH_PUBLIC_KEY_B64_DECODED := $(shell \
+	if [ -n "$(SSH_PUBLIC_KEY_PATH)" ] && [ -f "$(SSH_PUBLIC_KEY_PATH)" ]; then \
+		cat "$(SSH_PUBLIC_KEY_PATH)"; \
+	elif [ -f "$(HOME)/.ssh/id_ed25519.pub" ]; then \
+		cat "$(HOME)/.ssh/id_ed25519.pub"; \
+	elif [ -f "$(HOME)/.ssh/id_rsa.pub" ]; then \
+		cat "$(HOME)/.ssh/id_rsa.pub"; \
+	elif [ -f "$(HOME)/.ssh/id_ecdsa.pub" ]; then \
+		cat "$(HOME)/.ssh/id_ecdsa.pub"; \
+	elif [ -f "$(HOME)/.ssh/id_ecdsa_sk.pub" ]; then \
+		cat "$(HOME)/.ssh/id_ecdsa_sk.pub"; \
+	else \
+		echo ""; \
+	fi)
+
 SSH_PUBLIC_KEY_B64 := $(shell \
 	if [ -n "$(SSH_PUBLIC_KEY_PATH)" ] && [ -f "$(SSH_PUBLIC_KEY_PATH)" ]; then \
 		cat "$(SSH_PUBLIC_KEY_PATH)"; \
@@ -163,12 +181,16 @@ vm/bootstrap:
 
 # copy our secrets into the VM
 vm/secrets:
-	# GPG keyring
-	rsync -av -e 'ssh $(SSH_OPTIONS)' \
-		--exclude='.#*' \
-		--exclude='S.*' \
-		--exclude='*.conf' \
-		$(HOME)/.gnupg/ $(NIXUSER)@$(NIXADDR):~/.gnupg
+	# GPG keyring (skip if not present)
+	@if [ -d "$(HOME)/.gnupg" ]; then \
+		rsync -av -e 'ssh $(SSH_OPTIONS)' \
+			--exclude='.#*' \
+			--exclude='S.*' \
+			--exclude='*.conf' \
+			$(HOME)/.gnupg/ $(NIXUSER)@$(NIXADDR):~/.gnupg; \
+	else \
+		echo "Skipping .gnupg (not found)"; \
+	fi
 	# SSH keys
 	rsync -av -e 'ssh $(SSH_OPTIONS)' \
 		--exclude='environment' \
@@ -187,9 +209,13 @@ vm/copy:
 
 # run the nixos-rebuild switch command. This does NOT copy files so you
 # have to run vm/copy before.
+# We pass the Attic cache by IP via --option so it works even before
+# avahi/mDNS is available (NixOS /etc/hosts is read-only).
 vm/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
 		sudo NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --impure --flake \"/nix-config#${NIXNAME}\" \
+			--option extra-substituters 'http://$(CACHE_ADDR):8080/main' \
+			--option extra-trusted-public-keys 'main:oA4xP/b/OGxNldLb2kqO9gSu8Bzdu3mp5RXl4LwZqGA=' \
 	"
 
 # Build a WSL installer
@@ -203,35 +229,37 @@ wsl:
 
 # Initialize Attic on the VM: generate server secret, create cache, make it public.
 # Run this once after the first vm/switch that deploys atticd.
+# Secret is generated locally (openssl not available on VM) and uses HS256.
 .PHONY: cache/init
 cache/init:
 	@echo "Initializing Attic on $(NIXADDR) ..."
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		mkdir -p /var/lib/atticd && \
+	@SECRET=$$(openssl rand -hex 64) && \
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) bash -c "'\
 		if [ ! -f /var/lib/atticd/env ]; then \
-			echo \"ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64=$$(openssl rand -base64 64 | tr -d '\\n')\" > /var/lib/atticd/env && \
-			chmod 600 /var/lib/atticd/env && \
-			systemctl restart atticd && \
+			sudo mkdir -p /var/lib/atticd && \
+			echo ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64=$$SECRET | sudo tee /var/lib/atticd/env > /dev/null && \
+			sudo chmod 600 /var/lib/atticd/env && \
+			sudo systemctl restart atticd && \
 			sleep 3; \
 		fi && \
-		TOKEN=$$(atticd-atticadm make-token --sub admin --validity '10y' \
-			--pull '*' --push '*' --create-cache '*' --configure-cache '*' \
-			--configure-cache-retention '*' --destroy-cache '*') && \
-		attic login local http://localhost:8080 $$TOKEN && \
-		attic cache create main 2>/dev/null || true && \
-		attic cache configure main --public && \
-		echo '---' && \
-		echo 'Attic cache ready. Signing public key:' && \
-		attic cache info main 2>&1 | grep 'Public Key' \
-	"
+		TOKEN=\$$(sudo atticd-atticadm make-token --sub admin --validity 10y \
+			--pull \"*\" --push \"*\" --create-cache \"*\" --configure-cache \"*\" \
+			--configure-cache-retention \"*\" --destroy-cache \"*\") && \
+		attic login local http://localhost:8080 \$$TOKEN && \
+		(attic cache create main 2>/dev/null || true) && \
+		attic cache configure main --public --upstream-cache-key-name \"\" && \
+		echo --- && \
+		echo Attic cache ready. Signing public key: && \
+		attic cache info main 2>&1 | grep \"Public Key\" \
+	'"
 
 # Push all store paths on the VM to the Attic cache.
 .PHONY: cache/push
 cache/push:
 	@echo "Pushing all store paths to Attic cache ..."
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		nix path-info --all | xargs attic push main \
-	"
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) bash -c "' \
+		nix path-info --all | attic push main --stdin \
+	'"
 
 # Test that the local Attic cache is reachable from the host.
 .PHONY: cache/test

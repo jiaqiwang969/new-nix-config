@@ -104,6 +104,11 @@
       user   = "jqwang";
     };
 
+    nixosConfigurations.vm-aarch64-utm-02 = mkSystem "vm-aarch64-utm-02" rec {
+      system = "aarch64-linux";
+      user   = "jqwang";
+    };
+
     nixosConfigurations.vm-aarch64-utm-cache = mkSystem "vm-aarch64-utm-cache" rec {
       system = "aarch64-linux";
       user   = "jqwang";
