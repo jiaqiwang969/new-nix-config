@@ -203,24 +203,18 @@ utm/bootstrap-all:
 	@$(MAKE) utm/start NIXNAME=$(NIXNAME)
 	@echo "Waiting for VM to boot from ISO ..."
 	@sleep 15
-	@BOOT_IP=""; \
-	for i in $$(seq 1 $(UTMCTL_WAIT_SECONDS)); do \
-		BOOT_IP=$$(osascript -e ' \
-			tell application "UTM" \
-				to query ip virtual machine named "$(NIXNAME)"' 2>/dev/null \
-			| sed 's/, /\n/g' | head -1); \
-		if [ -n "$$BOOT_IP" ]; then break; fi; \
-		sleep 1; \
-	done; \
-	if [ -z "$$BOOT_IP" ]; then \
-		echo "ERROR: Cannot detect ISO-boot IP. Check VM network."; \
-		exit 1; \
-	fi; \
+	@$(MAKE) utm/iso-prepare-ssh NIXNAME=$(NIXNAME)
+	@echo "Detecting ISO environment IP ..."
+	@BOOT_IP=$$($(MAKE) --no-print-directory utm/detect-ip NIXNAME=$(NIXNAME)); \
+	if [ -z "$$BOOT_IP" ]; then echo "ERROR: Could not detect ISO IP."; exit 1; fi; \
 	echo "ISO environment IP: $$BOOT_IP"; \
-	echo "Setting root password in ISO environment ..."; \
-	sshpass -p nixos ssh $(SSH_OPTIONS) -p$(NIXPORT) nixos@$$BOOT_IP "echo 'root:root' | sudo chpasswd" || \
-		(echo "Trying direct root login ..."; \
-		 sshpass -p root ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$$BOOT_IP "true"); \
+	echo "Waiting for SSH on $$BOOT_IP ..."; \
+	for i in $$(seq 1 30); do \
+		sshpass -p root ssh -o ConnectTimeout=2 $(SSH_OPTIONS) -p$(NIXPORT) root@$$BOOT_IP true 2>/dev/null && break; \
+		sleep 2; \
+	done; \
+	sshpass -p root ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$$BOOT_IP "uname -a" || \
+		{ echo "ERROR: SSH to ISO environment failed."; exit 1; }; \
 	echo "Running bootstrap0 ..."; \
 	$(MAKE) utm/bootstrap0 NIXADDR=$$BOOT_IP NIXNAME=$(NIXNAME); \
 	echo ""; \
