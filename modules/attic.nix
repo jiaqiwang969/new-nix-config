@@ -22,6 +22,70 @@
     };
   };
 
+  # 1. Generate JWT secret and env file on first boot before atticd starts
+  systemd.services.atticd-init = {
+    description = "Initialize Attic environment file";
+    before = [ "atticd.service" ];
+    requiredBy = [ "atticd.service" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      mkdir -p /var/lib/atticd
+      if [ ! -f /var/lib/atticd/env ]; then
+        SECRET=$(${pkgs.openssl}/bin/openssl rand -hex 64)
+        echo "ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64=$SECRET" > /var/lib/atticd/env.tmp
+        mv /var/lib/atticd/env.tmp /var/lib/atticd/env
+        chmod 600 /var/lib/atticd/env
+      fi
+    '';
+  };
+
+  # 2. Automatically create 'main' cache once atticd is up and running
+  systemd.services.atticd-setup-cache = {
+    description = "Setup default main cache for Attic";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "atticd.service" ];
+    requires = [ "atticd.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      User = "root";
+    };
+    script = ''
+      # Wait for atticd API to become responsive
+      for i in {1..30}; do
+        if ${pkgs.curl}/bin/curl -s http://localhost:8080/ > /dev/null; then
+          break
+        fi
+        sleep 1
+      done
+
+      # Generate admin token
+      TOKEN=$(${pkgs.attic-server}/bin/atticd-atticadm make-token --sub admin --validity '10y' --pull '*' --push '*' --create-cache '*' --configure-cache '*' --configure-cache-retention '*' --destroy-cache '*')
+      
+      # Login and configure main cache
+      ${pkgs.attic-client}/bin/attic login local http://localhost:8080 $TOKEN
+      ${pkgs.attic-client}/bin/attic cache create main || true
+      ${pkgs.attic-client}/bin/attic cache configure main --public --upstream-cache-key-name ""
+    '';
+  };
+
+  
+  systemd.services.atticd-setup-cache = {
+    description = "Create and configure main attic cache";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "atticd.service" ];
+    requires = [ "atticd.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.bash}/bin/bash -c 'until ${pkgs.curl}/bin/curl -s http://localhost:8080/ > /dev/null; do sleep 1; done; TOKEN=$(${pkgs.attic-server}/bin/atticd-atticadm make-token --sub admin --validity 10y --pull "*" --push "*" --create-cache "*" --configure-cache "*" --configure-cache-retention "*" --destroy-cache "*"); ${pkgs.attic-client}/bin/attic login local http://localhost:8080 $$TOKEN; ${pkgs.attic-client}/bin/attic cache create main 2>/dev/null || true; ${pkgs.attic-client}/bin/attic cache configure main --public --upstream-cache-key-name ""'";
+    };
+  };
+
   # mDNS so cache is discoverable as nixos-utm.local (macOS has native Bonjour)
   services.avahi = {
     enable = true;

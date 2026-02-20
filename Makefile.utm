@@ -1,5 +1,6 @@
 # Default to the single UTM system we keep for this repo.
 NIXNAME ?= vm-aarch64-utm
+UTM_DATA_DIR := $(HOME)/Library/Containers/com.utmapp.UTM/Data/Documents
 
 LOCAL_UTMCTL := $(firstword $(wildcard $(HOME)/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug/utmctl))
 ifeq ($(strip $(LOCAL_UTMCTL)),)
@@ -172,7 +173,7 @@ utm/bootstrap0:
 			services.openssh.settings.PasswordAuthentication = true;\n \
 			services.openssh.settings.PermitRootLogin = \"yes\";\n \
 			users.users.root.initialPassword = \"root\";\n \
-			users.users.jqwang = { isNormalUser = true; extraGroups = [ \"wheel\" ]; initialPassword = \"jqwang\"; };\n \
+			users.users.jqwang = { isNormalUser = true; extraGroups = [ \"wheel\" ]; initialPassword = \"jqwang\"; openssh.authorizedKeys.keys = [ \"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjFka95UiprmSFObYiKafcW3QsIAEKz768N9crOVU7H jqwang@jqwangs-MacBook-Pro.local\" ]; };\n \
 			security.sudo.wheelNeedsPassword = false;\n \
 			services.spice-vdagentd.enable = true;\n \
 			environment.variables.LIBGL_ALWAYS_SOFTWARE = \"1\";\n \
@@ -192,9 +193,6 @@ utm/bootstrap:
 	@echo "VM is reachable at $(NIXADDR)."
 	NIXUSER=root $(MAKE) vm/copy NIXADDR=$(NIXADDR) NIXNAME=$(NIXNAME)
 	NIXUSER=root $(MAKE) vm/switch NIXADDR=$(NIXADDR) NIXNAME=$(NIXNAME)
-	$(MAKE) vm/secrets NIXADDR=$(NIXADDR) NIXUSER=jqwang
-	@echo "Rebooting VM ..."
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) "reboot" || true
 
 # ---------------------------------------------------------------------------
 # Full automated pipeline: ensure VM -> bootstrap0 -> stop -> remove ISO
@@ -247,4 +245,27 @@ utm/bootstrap-all:
 		exit 1; \
 	fi; \
 	echo "Disk-boot IP: $$DISK_IP"; \
-	$(MAKE) utm/bootstrap NIXADDR=$$DISK_IP NIXNAME=$(NIXNAME)
+	$(MAKE) utm/bootstrap NIXADDR=$$DISK_IP NIXNAME=$(NIXNAME) || true; \
+		echo "Waiting for system to stabilize after switch..."; \
+		sleep 15; \
+		$(MAKE) vm/secrets NIXADDR=$$DISK_IP NIXUSER=jqwang; \
+		echo "Rebooting VM..."; \
+		ssh -o ConnectTimeout=2 $(SSH_OPTIONS) -p$(NIXPORT) root@$$DISK_IP "reboot" || true
+
+# ---------------------------------------------------------------------------
+# One-click Golden Image deployment
+# ---------------------------------------------------------------------------
+utm/deploy-golden-image:
+	@echo "Deploying Golden Image: $$(NIXNAME)"
+	@$$(MAKE) utm/destroy NIXNAME=$$(NIXNAME)
+	@$$(MAKE) utm/bootstrap-all NIXNAME=$$(NIXNAME)
+	@echo "Golden image bootstrapped. Waiting for atticd to come online..."
+	@DISK_IP=$$$$( $$(MAKE) --no-print-directory utm/detect-ip NIXNAME=$$(NIXNAME) ); \
+	if [ -z "$$DISK_IP" ]; then echo "ERROR: Could not detect disk IP."; exit 1; fi; \
+	for i in $$$$(seq 1 30); do \
+		ssh -o ConnectTimeout=2 $$(SSH_OPTIONS) -p$$(NIXPORT) jqwang@$$DISK_IP "systemctl is-active atticd" 2>/dev/null && break; \
+		sleep 2; \
+	done; \
+	echo "Attic is online. Running cache/push..."; \
+	$$(MAKE) cache/push NIXADDR=$$DISK_IP; \
+	echo "Golden Image $$(NIXNAME) deployment complete!"
