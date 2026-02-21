@@ -144,6 +144,39 @@ utm/remove-removable-drives:
 	@echo "Removable drives removed from '$(NIXNAME)'."
 
 # ---------------------------------------------------------------------------
+# Prepare ISO environment for SSH via UTM input keystroke.
+# NixOS minimal ISO auto-logs in as nixos on tty1; types commands to set
+# root password and enable SSH password auth.
+# ---------------------------------------------------------------------------
+utm/iso-prepare-ssh:
+	@echo "Preparing ISO environment for SSH via UTM keystroke ..."
+	@printf '%s\n' \
+		'tell application "UTM"' \
+		'  set vm to virtual machine named "$(NIXNAME)"' \
+		'  input keystroke vm text "sudo su"' \
+		'  delay 0.5' \
+		'  input keystroke vm text return' \
+		'  delay 2' \
+		'  input keystroke vm text "echo root:root | chpasswd"' \
+		'  delay 0.5' \
+		'  input keystroke vm text return' \
+		'  delay 1' \
+		'  input keystroke vm text "sed -i '"'"'s/PasswordAuthentication no/PasswordAuthentication yes/'"'"' /etc/ssh/sshd_config"' \
+		'  delay 0.5' \
+		'  input keystroke vm text return' \
+		'  delay 1' \
+		'  input keystroke vm text "echo '"'"'PermitRootLogin yes'"'"' >> /etc/ssh/sshd_config"' \
+		'  delay 0.5' \
+		'  input keystroke vm text return' \
+		'  delay 1' \
+		'  input keystroke vm text "systemctl restart sshd"' \
+		'  delay 0.5' \
+		'  input keystroke vm text return' \
+		'end tell' | osascript -
+	@echo "SSH prepared. Waiting for sshd to restart ..."
+	@sleep 3
+
+# ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
 
