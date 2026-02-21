@@ -149,31 +149,22 @@ utm/remove-removable-drives:
 # root password and enable SSH password auth.
 # ---------------------------------------------------------------------------
 utm/iso-prepare-ssh:
-	@echo "Preparing ISO environment for SSH via UTM keystroke ..."
-	@printf '%s\n' \
-		'tell application "UTM"' \
-		'  set vm to virtual machine named "$(NIXNAME)"' \
-		'  input keystroke vm text "sudo su"' \
-		'  delay 0.5' \
-		'  input keystroke vm text return' \
-		'  delay 2' \
-		'  input keystroke vm text "echo root:root | chpasswd"' \
-		'  delay 0.5' \
-		'  input keystroke vm text return' \
-		'  delay 1' \
-		'  input keystroke vm text "sed -i '"'"'s/PasswordAuthentication no/PasswordAuthentication yes/'"'"' /etc/ssh/sshd_config"' \
-		'  delay 0.5' \
-		'  input keystroke vm text return' \
-		'  delay 1' \
-		'  input keystroke vm text "echo '"'"'PermitRootLogin yes'"'"' >> /etc/ssh/sshd_config"' \
-		'  delay 0.5' \
-		'  input keystroke vm text return' \
-		'  delay 1' \
-		'  input keystroke vm text "systemctl restart sshd"' \
-		'  delay 0.5' \
-		'  input keystroke vm text return' \
-		'end tell' | osascript -
-	@echo "SSH prepared. Waiting for sshd to restart ..."
+	@echo "Preparing ISO environment for SSH via serial console ..."
+	@echo "Waiting for serial port to become available ..."
+	@for i in $$(seq 1 30); do \
+		PTY_PATH=$$($$(MAKE) --no-print-directory utm/serial-path NIXNAME=$$(NIXNAME) 2>/dev/null || true); \
+		if [ -n "$$PTY_PATH" ] && [ -e "$$PTY_PATH" ]; then break; fi; \
+		sleep 2; \
+	done; \
+	if [ -z "$$PTY_PATH" ]; then echo "ERROR: Serial port not found"; exit 1; fi; \
+	echo "Found serial port at $$PTY_PATH"; \
+	echo "Sending commands via serial ..."; \
+	printf "sudo su\n" > "$$PTY_PATH"; sleep 1; \
+	printf "echo root:root | chpasswd\n" > "$$PTY_PATH"; sleep 1; \
+	printf "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\n" > "$$PTY_PATH"; sleep 1; \
+	printf "echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config\n" > "$$PTY_PATH"; sleep 1; \
+	printf "systemctl restart sshd\n" > "$$PTY_PATH"; \
+	echo "SSH prepared. Waiting for sshd to restart ..."
 	@sleep 3
 
 # ---------------------------------------------------------------------------
