@@ -152,7 +152,7 @@ utm/iso-prepare-ssh:
 	@echo "Preparing ISO environment for SSH via serial console ..."
 	@echo "Waiting for serial port to become available ..."
 	@for i in $$(seq 1 30); do \
-		PTY_PATH=$$($$(MAKE) --no-print-directory utm/serial-path NIXNAME=$$(NIXNAME) 2>/dev/null || true); \
+		PTY_PATH=$$($(MAKE) --no-print-directory utm/serial-path NIXNAME=$(NIXNAME) 2>/dev/null || true); \
 		if [ -n "$$PTY_PATH" ] && [ -e "$$PTY_PATH" ]; then break; fi; \
 		sleep 2; \
 	done; \
