@@ -114,6 +114,11 @@ nixosConfigurations.vm-aarch64-orb = mkSystem "vm-aarch64-orb" {
       user   = "jqwang";
     };
 
+    nixosConfigurations.vm-aarch64-orb-agent-03 = mkSystem "vm-aarch64-orb-agent-03" {
+      system = "aarch64-linux";
+      user   = "jqwang";
+    };
+
     nixosConfigurations.vm-intel = mkSystem "vm-intel" rec {
       system = "x86_64-linux";
       user   = "jqwang";
