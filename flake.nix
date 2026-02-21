@@ -5,37 +5,37 @@
     # Pin our primary nixpkgs repository. This is the main nixpkgs repository
     # we'll use for our configurations. Be very careful changing this because
     # it'll impact your entire system.
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11?shallow=1";
 
     # Used to get ibus 1.5.29 which has some quirks we want to test.
-    nixpkgs-old-ibus.url = "github:nixos/nixpkgs/e2dd4e18cc1c7314e24154331bae07df76eb582f";
+    nixpkgs-old-ibus.url = "github:nixos/nixpkgs/e2dd4e18cc1c7314e24154331bae07df76eb582f?shallow=1";
 
     # We use the unstable nixpkgs repo for some packages.
-    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable?shallow=1";
 
     # Master nixpkgs is used for really bleeding edge packages. Warning
     # that this is extremely unstable and shouldn't be relied on. Its
     # mostly for testing.
-    nixpkgs-master.url = "github:nixos/nixpkgs";
+    nixpkgs-master.url = "github:nixos/nixpkgs?shallow=1";
 
     # Build a custom WSL installer
-    nixos-wsl.url = "github:nix-community/NixOS-WSL";
+    nixos-wsl.url = "github:nix-community/NixOS-WSL?shallow=1";
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
 
     # snapd
-    nix-snapd.url = "github:nix-community/nix-snapd";
+    nix-snapd.url = "github:nix-community/nix-snapd?shallow=1";
     nix-snapd.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager = {
       # We need to use nightly home-manager because it contains this
       # fix we need for nushell nightly:
       # https://github.com/nix-community/home-manager/commit/a69ebd97025969679de9f930958accbe39b4c705
-      url = "github:nix-community/home-manager";
+      url = "github:nix-community/home-manager?shallow=1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     darwin = {
-      url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
+      url = "github:nix-darwin/nix-darwin/nix-darwin-25.11?shallow=1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -43,18 +43,18 @@
     # used by neovim but recently I had failures if I didn't pin to my
     # own. We can always try to remove that anytime.
     neovim-nightly-overlay = {
-      url = "github:nix-community/neovim-nightly-overlay";
+      url = "github:nix-community/neovim-nightly-overlay?shallow=1";
     };
 
     # Other packages
-    jujutsu.url = "github:martinvonz/jj";
-    zig.url = "github:mitchellh/zig-overlay";
+    jujutsu.url = "github:martinvonz/jj?shallow=1";
+    zig.url = "github:mitchellh/zig-overlay?shallow=1";
     # Non-flakes
-    theme-bobthefish.url = "github:oh-my-fish/theme-bobthefish/e3b4d4eafc23516e35f162686f08a42edf844e40";
+    theme-bobthefish.url = "github:oh-my-fish/theme-bobthefish/e3b4d4eafc23516e35f162686f08a42edf844e40?shallow=1";
     theme-bobthefish.flake = false;
-    fish-fzf.url = "github:jethrokuan/fzf/24f4739fc1dffafcc0da3ccfbbd14d9c7d31827a";
+    fish-fzf.url = "github:jethrokuan/fzf/24f4739fc1dffafcc0da3ccfbbd14d9c7d31827a?shallow=1";
     fish-fzf.flake = false;
-    fish-foreign-env.url = "github:oh-my-fish/plugin-foreign-env/dddd9213272a0ab848d474d0cbde12ad034e65bc";
+    fish-foreign-env.url = "github:oh-my-fish/plugin-foreign-env/dddd9213272a0ab848d474d0cbde12ad034e65bc?shallow=1";
     fish-foreign-env.flake = false;
   };
 
@@ -100,6 +100,16 @@
     };
 
 nixosConfigurations.vm-aarch64-orb = mkSystem "vm-aarch64-orb" {
+      system = "aarch64-linux";
+      user   = "jqwang";
+    };
+
+    nixosConfigurations.vm-aarch64-orb-agent = mkSystem "vm-aarch64-orb-agent" {
+      system = "aarch64-linux";
+      user   = "jqwang";
+    };
+
+    nixosConfigurations.vm-aarch64-orb-agent-02 = mkSystem "vm-aarch64-orb-agent-02" {
       system = "aarch64-linux";
       user   = "jqwang";
     };

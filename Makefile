@@ -9,6 +9,13 @@ MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 # The name of the nixosConfiguration in the flake
 NIXNAME ?= vm-aarch64
 
+# OrbStack machine name (used when switching NixOS configs from macOS)
+# Convention: vm-aarch64-orb-agent → nixos-agent, vm-aarch64-orb → nixos-dev
+ORB_MACHINE ?= $(shell echo "$(NIXNAME)" | sed -n 's/.*-orb-\(.*\)/nixos-\1/p')
+ifeq ($(ORB_MACHINE),)
+ORB_MACHINE := nixos-dev
+endif
+
 # Disk device in the VM (sda for x86 SATA, vda for aarch64 virtio)
 NIXDISK ?= vda
 
@@ -79,20 +86,64 @@ endif
 # We need to do some OS switching below.
 UNAME := $(shell uname)
 
+# Check if NIXNAME targets an OrbStack container (convention: name contains "-orb")
+IS_ORB := $(findstring -orb,$(NIXNAME))
+
+# The macOS path as seen from inside the OrbStack container
+ORB_NIXCONFIG := /mnt/mac$(MAKEFILE_DIR)
+
+# Attic cache URL and public key (passed via --option so fresh containers use it on first switch)
+ORB_ATTIC_CACHE := http://nixos-orb.local:8080/main
+ORB_ATTIC_KEY := main:7JXrt3wZGWJXf3M6WqaP89saCSLDJVW3faHlTngVfRA=
+
 switch:
 ifeq ($(UNAME), Darwin)
+ifneq ($(IS_ORB),)
+	@orb -m $(ORB_MACHINE) -u root bash -c '\
+		if ! curl -sf $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
+			CACHE_ENTRY="$(ORB_ATTIC_CACHE) https://cache.nixos.org/"; \
+		else \
+			CACHE_ENTRY="$(ORB_ATTIC_CACHE)"; \
+		fi; \
+		if ! grep -q "^substituters = $$CACHE_ENTRY$$" /etc/nix/nix.conf 2>/dev/null; then \
+			rm -f /etc/nix/nix.conf && \
+			cp /etc/static/nix/nix.conf /etc/nix/nix.conf && \
+			sed -i "s|substituters = .*|substituters = $$CACHE_ENTRY|" /etc/nix/nix.conf && \
+			sed -i "s|trusted-public-keys = |trusted-public-keys = $(ORB_ATTIC_KEY) |" /etc/nix/nix.conf && \
+			systemctl restart nix-daemon 2>/dev/null || true; \
+		fi'
+	orb -m $(ORB_MACHINE) -u root bash -c 'cd $(ORB_NIXCONFIG) && $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake ".#${NIXNAME}"'
+else
 	$(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 nix build --impure --extra-experimental-features nix-command --extra-experimental-features flakes ".#darwinConfigurations.${NIXNAME}.system"
 	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild switch --impure --flake "$$(pwd)#${NIXNAME}"
+endif
 else
-	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --impure --flake ".#${NIXNAME}"
+	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake ".#${NIXNAME}"
 endif
 
 test:
 ifeq ($(UNAME), Darwin)
+ifneq ($(IS_ORB),)
+	@orb -m $(ORB_MACHINE) -u root bash -c '\
+		if ! curl -sf $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
+			CACHE_ENTRY="$(ORB_ATTIC_CACHE) https://cache.nixos.org/"; \
+		else \
+			CACHE_ENTRY="$(ORB_ATTIC_CACHE)"; \
+		fi; \
+		if ! grep -q "^substituters = $$CACHE_ENTRY$$" /etc/nix/nix.conf 2>/dev/null; then \
+			rm -f /etc/nix/nix.conf && \
+			cp /etc/static/nix/nix.conf /etc/nix/nix.conf && \
+			sed -i "s|substituters = .*|substituters = $$CACHE_ENTRY|" /etc/nix/nix.conf && \
+			sed -i "s|trusted-public-keys = |trusted-public-keys = $(ORB_ATTIC_KEY) |" /etc/nix/nix.conf && \
+			systemctl restart nix-daemon 2>/dev/null || true; \
+		fi'
+	orb -m $(ORB_MACHINE) -u root bash -c 'cd $(ORB_NIXCONFIG) && $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild test --fast --impure --flake ".#${NIXNAME}"'
+else
 	$(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 nix build --impure ".#darwinConfigurations.${NIXNAME}.system"
 	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild test --impure --flake "$$(pwd)#${NIXNAME}"
+endif
 else
-	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild test --impure --flake ".#$(NIXNAME)"
+	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild test --fast --impure --flake ".#$(NIXNAME)"
 endif
 
 # This builds the given NixOS configuration and pushes the results to the
@@ -210,7 +261,7 @@ vm/copy:
 # avahi/mDNS is available (NixOS /etc/hosts is read-only).
 vm/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		sudo NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --impure --flake \"/nix-config#${NIXNAME}\" \
+		sudo NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake \"/nix-config#${NIXNAME}\" \
 	"
 
 # Build a WSL installer
