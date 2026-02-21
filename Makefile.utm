@@ -250,16 +250,16 @@ utm/bootstrap-all:
 # One-click Golden Image deployment
 # ---------------------------------------------------------------------------
 utm/deploy-golden-image:
-	@echo "Deploying Golden Image: $$(NIXNAME)"
-	@$$(MAKE) utm/destroy NIXNAME=$$(NIXNAME)
-	@$$(MAKE) utm/bootstrap-all NIXNAME=$$(NIXNAME)
+	@echo "Deploying Golden Image: $(NIXNAME)"
+	@$(MAKE) utm/destroy NIXNAME=$(NIXNAME)
+	@$(MAKE) utm/bootstrap-all NIXNAME=$(NIXNAME)
 	@echo "Golden image bootstrapped. Waiting for atticd to come online..."
-	@DISK_IP=$$$$( $$(MAKE) --no-print-directory utm/detect-ip NIXNAME=$$(NIXNAME) ); \
+	@DISK_IP=$$($(MAKE) --no-print-directory utm/detect-ip NIXNAME=$(NIXNAME)); \
 	if [ -z "$$DISK_IP" ]; then echo "ERROR: Could not detect disk IP."; exit 1; fi; \
-	for i in $$$$(seq 1 30); do \
-		ssh -o ConnectTimeout=2 $$(SSH_OPTIONS) -p$$(NIXPORT) jqwang@$$DISK_IP "systemctl is-active atticd" 2>/dev/null && break; \
+	for i in $$(seq 1 30); do \
+		ssh -o ConnectTimeout=2 $(SSH_OPTIONS) -p$(NIXPORT) jqwang@$$DISK_IP "systemctl is-active atticd" 2>/dev/null && break; \
 		sleep 2; \
 	done; \
 	echo "Attic is online. Running cache/push..."; \
-	$$(MAKE) cache/push NIXADDR=$$DISK_IP; \
-	echo "Golden Image $$(NIXNAME) deployment complete!"
+	$(MAKE) cache/push NIXADDR=$$DISK_IP; \
+	echo "Golden Image $(NIXNAME) deployment complete!"
