@@ -149,22 +149,22 @@ utm/remove-removable-drives:
 # root password and enable SSH password auth.
 # ---------------------------------------------------------------------------
 utm/iso-prepare-ssh:
-	@echo "Preparing ISO environment for SSH via serial console ..."
-	@echo "Waiting for serial port to become available ..."
+	@echo "--- [1/3] Preparing ISO environment for SSH via serial console ---"
+	@echo "-> Waiting for serial port to become available ..."
 	@for i in $$(seq 1 30); do \
 		PTY_PATH=$$($(MAKE) --no-print-directory utm/serial-path NIXNAME=$(NIXNAME) 2>/dev/null || true); \
 		if [ -n "$$PTY_PATH" ] && [ -e "$$PTY_PATH" ]; then break; fi; \
 		sleep 2; \
 	done; \
 	if [ -z "$$PTY_PATH" ]; then echo "ERROR: Serial port not found"; exit 1; fi; \
-	echo "Found serial port at $$PTY_PATH"; \
-	echo "Sending commands via serial ..."; \
-	printf "sudo su\n" > "$$PTY_PATH"; sleep 1; \
-	printf "echo root:root | chpasswd\n" > "$$PTY_PATH"; sleep 1; \
-	printf "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\n" > "$$PTY_PATH"; sleep 1; \
-	printf "echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config\n" > "$$PTY_PATH"; sleep 1; \
-	printf "systemctl restart sshd\n" > "$$PTY_PATH"; \
-	echo "SSH prepared. Waiting for sshd to restart ..."
+	echo "-> Found serial port at $$PTY_PATH"; \
+	echo "-> Sending commands via serial ..."; \
+	printf "sudo su\r" > "$$PTY_PATH"; sleep 1; \
+	printf "echo root:root | chpasswd\r" > "$$PTY_PATH"; sleep 1; \
+	printf "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\r" > "$$PTY_PATH"; sleep 1; \
+	printf "echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config\r" > "$$PTY_PATH"; sleep 1; \
+	printf "systemctl restart sshd\r" > "$$PTY_PATH"; \
+	echo "-> SSH configured via serial. Waiting for sshd to restart ..."
 	@sleep 3
 
 # ---------------------------------------------------------------------------
