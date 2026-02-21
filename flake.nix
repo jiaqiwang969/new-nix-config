@@ -99,17 +99,7 @@
       user   = "jqwang";
     };
 
-    nixosConfigurations.vm-aarch64-utm = mkSystem "vm-aarch64-utm" rec {
-      system = "aarch64-linux";
-      user   = "jqwang";
-    };
-
-    nixosConfigurations.vm-aarch64-utm-02 = mkSystem "vm-aarch64-utm-02" rec {
-      system = "aarch64-linux";
-      user   = "jqwang";
-    };
-
-    nixosConfigurations.vm-aarch64-utm-cache = mkSystem "vm-aarch64-utm-cache" rec {
+nixosConfigurations.vm-aarch64-orb = mkSystem "vm-aarch64-orb" {
       system = "aarch64-linux";
       user   = "jqwang";
     };

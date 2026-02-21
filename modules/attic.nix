@@ -73,19 +73,6 @@
     '';
   };
 
-  
-  systemd.services.atticd-setup-cache = {
-    description = "Create and configure main attic cache";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "atticd.service" ];
-    requires = [ "atticd.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.bash}/bin/bash -c 'until ${pkgs.curl}/bin/curl -s http://localhost:8080/ > /dev/null; do sleep 1; done; TOKEN=$(${pkgs.attic-server}/bin/atticd-atticadm make-token --sub admin --validity 10y --pull "*" --push "*" --create-cache "*" --configure-cache "*" --configure-cache-retention "*" --destroy-cache "*"); ${pkgs.attic-client}/bin/attic login local http://localhost:8080 $$TOKEN; ${pkgs.attic-client}/bin/attic cache create main 2>/dev/null || true; ${pkgs.attic-client}/bin/attic cache configure main --public --upstream-cache-key-name ""'";
-    };
-  };
-
   # mDNS so cache is discoverable as nixos-utm.local (macOS has native Bonjour)
   services.avahi = {
     enable = true;

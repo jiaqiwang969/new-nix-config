@@ -3,9 +3,6 @@ NIXADDR ?= unset
 NIXPORT ?= 22
 NIXUSER ?= jqwang
 
-# IP of the Attic cache VM (for /etc/hosts injection before avahi is available)
-CACHE_ADDR ?= 192.168.64.13
-
 # Get the path to this Makefile and directory
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
@@ -158,8 +155,8 @@ vm/bootstrap0:
 		sed --in-place '/system\.stateVersion = .*/a \
 			nix.package = pkgs.nixVersions.latest;\n \
 			nix.extraOptions = \"experimental-features = nix-command flakes\";\n \
-			nix.settings.substituters = [\"http://nixos-utm-cache.local:8080/main\" \"https://nix-community.cachix.org\" \"https://jj-vcs.cachix.org\" \"https://mitchellh-nixos-config.cachix.org\"];\n \
-			nix.settings.trusted-public-keys = [\"main:oA4xP/b/OGxNldLb2kqO9gSu8Bzdu3mp5RXl4LwZqGA=\" \"nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=\" \"jj-vcs.cachix.org-1:sn2MddHr1ztFndbsGHMHV6xpMGHlHTb0FQGR/UMqybM=\" \"mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=\"];\n \
+			nix.settings.substituters = [\"https://nix-community.cachix.org\" \"https://jj-vcs.cachix.org\" \"https://mitchellh-nixos-config.cachix.org\"];\n \
+			nix.settings.trusted-public-keys = [\"nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=\" \"jj-vcs.cachix.org-1:sn2MddHr1ztFndbsGHMHV6xpMGHlHTb0FQGR/UMqybM=\" \"mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=\"];\n \
   			services.openssh.enable = true;\n \
 			services.openssh.settings.PasswordAuthentication = true;\n \
 			services.openssh.settings.PermitRootLogin = \"yes\";\n \
@@ -214,8 +211,6 @@ vm/copy:
 vm/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
 		sudo NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --impure --flake \"/nix-config#${NIXNAME}\" \
-			--option extra-substituters 'http://$(CACHE_ADDR):8080/main' \
-			--option extra-trusted-public-keys 'main:oA4xP/b/OGxNldLb2kqO9gSu8Bzdu3mp5RXl4LwZqGA=' \
 	"
 
 # Build a WSL installer
@@ -264,7 +259,4 @@ cache/push:
 # Test that the local Attic cache is reachable from the host.
 .PHONY: cache/test
 cache/test:
-	@curl -sf http://nixos-utm-cache.local:8080/main/nix-cache-info && echo "Cache is up!" || echo "Cache unreachable."
-
-# Include UTM-specific targets
-include Makefile.utm
+	@curl -sf http://nixos-orb.local:8080/main/nix-cache-info && echo "Cache is up!" || echo "Cache unreachable."

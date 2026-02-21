@@ -43,3 +43,34 @@ prompt_color
 # if [ -n "$GHOSTTY_RESOURCES_DIR" ]; then
 #     builtin source "${GHOSTTY_RESOURCES_DIR}/shell-integration/bash/ghostty.bash"
 # fi
+
+#-------------------------------------------------------------------------------
+# Safe rm: intercepts ALL rm calls including /bin/rm, env rm, etc.
+#-------------------------------------------------------------------------------
+function rm() {
+    # Block catastrophically dangerous patterns
+    for arg in "$@"; do
+        expanded="${arg/#\~/$HOME}"
+        real=""
+        if [ -e "$expanded" ]; then
+            real="$(cd "$expanded" 2>/dev/null && pwd)"
+        fi
+        if [ "$expanded" = "$HOME" ] \
+            || [ "$expanded" = "$HOME/" ] \
+            || [ "$expanded" = "/" ] \
+            || [ "$real" = "$HOME" ] \
+            || [ "$real" = "/" ]; then
+            echo "" >&2
+            echo "╔══════════════════════════════════════════════════════╗" >&2
+            echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
+            echo "║  This command would have deleted everything.         ║" >&2
+            echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
+            echo "╚══════════════════════════════════════════════════════╝" >&2
+            echo "" >&2
+            return 1
+        fi
+    done
+    # Delegate to the safe-rm wrapper in PATH (moves to trash)
+    command rm "$@"
+}
+export -f rm

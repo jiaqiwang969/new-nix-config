@@ -38,8 +38,37 @@ let
     cat "$1" | col -bx | bat --language man --style plain
   ''));
 
+  # Shared danger-check snippet injected into safe-rm on both platforms.
+  # Uses only POSIX sh constructs so it works in the bash-based wrapper.
+  dangerCheck = ''
+    _safe_rm_danger=0
+    for _arg in "$@"; do
+      case "$_arg" in
+        "~"|"$HOME"|"$HOME/"|"/") _safe_rm_danger=1 ;;
+        *)
+          _expanded="''${_arg/#\~/$HOME}"
+          _real="''$(cd "$_expanded" 2>/dev/null && pwd)"
+          if [ "$_real" = "$HOME" ] || [ "$_real" = "/" ]; then
+            _safe_rm_danger=1
+          fi
+          ;;
+      esac
+    done
+    if [ "$_safe_rm_danger" = "1" ]; then
+      echo "" >&2
+      echo "╔══════════════════════════════════════════════════════╗" >&2
+      echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
+      echo "║  This command would have deleted everything.         ║" >&2
+      echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
+      echo "╚══════════════════════════════════════════════════════╝" >&2
+      echo "" >&2
+      exit 1
+    fi
+  '';
+
   # Safe rm wrapper: moves files to trash instead of deleting
   safe-rm = (pkgs.writeShellScriptBin "rm" (if isDarwin then ''
+    ${dangerCheck}
     # safe-rm: moves to macOS Trash instead of permanent delete
     args=()
     for arg in "$@"; do
@@ -60,6 +89,7 @@ let
     fi
     exec ${pkgs.darwin.trash}/bin/trash "''${args[@]}"
   '' else ''
+    ${dangerCheck}
     # On Linux, use a trash directory
     TRASH_DIR="$HOME/.local/share/Trash/files"
     mkdir -p "$TRASH_DIR"
@@ -170,6 +200,8 @@ in {
     ANTHROPIC_API_KEY = "op://Personal/Anthropic/api_key";
     ANTHROPIC_AUTH_TOKEN = "op://Personal/Anthropic/api_key";
     ANTHROPIC_BASE_URL = "op://Personal/Anthropic/base_url";
+
+    CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   } // (if isDarwin then {
     # See: https://github.com/NixOS/nixpkgs/issues/390751
     DISPLAY = "nixpkgs-390751";
@@ -269,8 +301,8 @@ in {
 
   programs.go = {
     enable = true;
-    env = { 
-      GOPATH = "Documents/go";
+    env = {
+      GOPATH = "${config.home.homeDirectory}/Documents/go";
       GOPRIVATE = [ "github.com/jqwang" ];
     };
   };

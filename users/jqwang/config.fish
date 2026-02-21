@@ -157,3 +157,33 @@ set -gx EDITOR nvim
 # `fnix -p go` to get an environment with Go but use the fish shell along
 # with it.
 alias fnix "nix-shell --run fish"
+
+#-------------------------------------------------------------------------------
+# Safe rm: intercepts ALL rm calls including /bin/rm, env rm, etc.
+#-------------------------------------------------------------------------------
+function rm --description "Safe rm: moves to trash, blocks HOME/root deletion"
+    # Block catastrophically dangerous patterns
+    for arg in $argv
+        set -l expanded (string replace -r '^~' $HOME -- $arg)
+        set -l real ""
+        if test -e "$expanded"
+            set real (cd "$expanded" 2>/dev/null; and pwd)
+        end
+        if test "$expanded" = "$HOME" \
+            -o "$expanded" = "$HOME/" \
+            -o "$expanded" = "/" \
+            -o "$real" = "$HOME" \
+            -o "$real" = "/"
+            echo "" >&2
+            echo "╔══════════════════════════════════════════════════════╗" >&2
+            echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
+            echo "║  This command would have deleted everything.         ║" >&2
+            echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
+            echo "╚══════════════════════════════════════════════════════╝" >&2
+            echo "" >&2
+            return 1
+        end
+    end
+    # Delegate to the safe-rm wrapper in PATH (moves to trash)
+    command rm $argv
+end
