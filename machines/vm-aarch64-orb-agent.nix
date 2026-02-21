@@ -51,9 +51,9 @@
   # Rosetta x86 模拟
   nix.settings.extra-platforms = [ "x86_64-linux" "i686-linux" ];
 
-  # 使用 nixos-dev 上的 Attic cache 加速构建
-  nix.settings.substituters = lib.mkAfter [
-    "http://nixos-dev@orb:8080/main"
+  # 使用 nixos-dev 上的 Attic cache 加速构建（优先于官方 cache）
+  nix.settings.substituters = lib.mkBefore [
+    "http://nixos-orb.local:8080/main"
   ];
   nix.settings.trusted-public-keys = lib.mkAfter [
     "main:9EEszuiyiG9xkuZmcZTL7EzLwqSEO9MEiViV7ymLNgs="

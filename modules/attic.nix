@@ -54,7 +54,12 @@
       RemainAfterExit = true;
       User = "root";
     };
-    script = ''
+    script = let
+      configFile = config.services.atticd.settings;
+      # The NixOS atticd module generates a checked TOML config; reference it
+      # via the systemd unit's ExecStart to stay in sync.
+      atticdConfigFile = "/run/atticd/atticd.toml";
+    in ''
       # Wait for atticd API to become responsive
       for i in {1..30}; do
         if ${pkgs.curl}/bin/curl -s http://localhost:8080/ > /dev/null; then
@@ -63,9 +68,17 @@
         sleep 1
       done
 
+      # Load the JWT secret so atticadm can sign tokens
+      set -a
+      . /var/lib/atticd/env
+      set +a
+
+      # Find the config file atticd is actually using
+      ATTICD_CONFIG=$(${pkgs.procps}/bin/ps -o args= -p $(${pkgs.procps}/bin/pgrep -x atticd) | ${pkgs.gnugrep}/bin/grep -oP '(?<=-f )\S+')
+
       # Generate admin token
-      TOKEN=$(${pkgs.attic-server}/bin/atticd-atticadm make-token --sub admin --validity '10y' --pull '*' --push '*' --create-cache '*' --configure-cache '*' --configure-cache-retention '*' --destroy-cache '*')
-      
+      TOKEN=$(${pkgs.attic-server}/bin/atticadm -f "$ATTICD_CONFIG" make-token --sub admin --validity '10y' --pull '*' --push '*' --create-cache '*' --configure-cache '*' --configure-cache-retention '*' --destroy-cache '*')
+
       # Login and configure main cache
       ${pkgs.attic-client}/bin/attic login local http://localhost:8080 $TOKEN
       ${pkgs.attic-client}/bin/attic cache create main || true

@@ -195,12 +195,6 @@ in {
     PAGER = "less -FirSwX";
     MANPAGER = "${manpager}/bin/manpager";
 
-    OPENAI_API_KEY = "op://Personal/OpenAPI_Personal/credential";
-    HF_TOKEN = "op://Personal/HuggingFace/credential";
-    ANTHROPIC_API_KEY = "op://Personal/Anthropic/api_key";
-    ANTHROPIC_AUTH_TOKEN = "op://Personal/Anthropic/api_key";
-    ANTHROPIC_BASE_URL = "op://Personal/Anthropic/base_url";
-
     CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   } // (if isDarwin then {
     # See: https://github.com/NixOS/nixpkgs/issues/390751
@@ -260,6 +254,16 @@ in {
       "source ${inputs.theme-bobthefish}/functions/fish_title.fish"
       (builtins.readFile ./config.fish)
       "set -g SHELL ${pkgs.fish}/bin/fish"
+      # Resolve op:// secrets via 1Password CLI
+      ''
+        if command -q op
+          set -gx OPENAI_API_KEY (op read "op://Personal/OpenAPI_Personal/credential" 2>/dev/null)
+          set -gx HF_TOKEN (op read "op://Personal/HuggingFace/credential" 2>/dev/null)
+          set -gx ANTHROPIC_AUTH_TOKEN (op read "op://Personal/Anthropic/api_key" 2>/dev/null)
+          set -e ANTHROPIC_API_KEY
+          set -gx ANTHROPIC_BASE_URL (op read "op://Personal/Anthropic/base_url" 2>/dev/null)
+        end
+      ''
     ] ++ lib.optionals isDarwin [
       # Add TeX Live to PATH on macOS
       "fish_add_path /Library/TeX/texbin"
