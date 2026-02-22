@@ -115,6 +115,11 @@ nixosConfigurations.vm-aarch64-orb = mkSystem "vm-aarch64-orb" {
       user   = "jqwang";
     };
 
+        nixosConfigurations.vm-aarch64-orb-debug-base = mkSystem "vm-aarch64-orb-debug-base" {
+      system = "aarch64-linux";
+      user   = "jqwang";
+    };
+
     nixosConfigurations.vm-aarch64-orb-agent-02 = mkSystem "vm-aarch64-orb-agent-02" {
       system = "aarch64-linux";
       user   = "jqwang";
