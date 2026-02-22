@@ -275,17 +275,15 @@ wsl:
 # OrbStack automated zero-to-hero bootstrap
 # ---------------------------------------------------------------------------
 
-# create a brand new OrbStack VM (analogous to vm/bootstrap0)
-.PHONY: orb/create
-orb/create:
-	@echo "Creating pure NixOS OrbStack machine ($(NIXNAME))..."
+# bootstrap a brand new OrbStack VM. This is the equivalent of vm/bootstrap0
+# but specifically tailored for OrbStack's instant creation mechanism.
+orb/bootstrap0:
 	orb create nixos $(NIXNAME) || true
 
-# after orb/create, run this to finalize. After this, the VM is fully configured
-# and acting as the local Attic cache builder.
-.PHONY: orb/bootstrap-dev
-orb/bootstrap-dev:
-	$(MAKE) orb/create NIXNAME=nixos-dev
+# after orb/bootstrap0, run this to finalize. After this, the OrbStack VM
+# is fully configured, including the local Attic cache initialization.
+orb/bootstrap:
+	$(MAKE) orb/bootstrap0 NIXNAME=nixos-dev
 	$(MAKE) switch NIXNAME=vm-aarch64-orb
 	$(MAKE) cache/init NIXADDR=nixos-dev
 	$(MAKE) cache/push NIXADDR=nixos-dev
