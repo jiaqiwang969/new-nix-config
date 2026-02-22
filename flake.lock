@@ -270,6 +270,28 @@
         "type": "github"
       }
     },
+    "new-codex": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay_2"
+      },
+      "locked": {
+        "lastModified": 1771746578,
+        "narHash": "sha256-AE1AN/EnPrM7Q/DFszYPSLLtZGdJpEjC+Kgzle73wuo=",
+        "ref": "refs/heads/main",
+        "rev": "f28db977c1821df5214360b22bfa2b60e5bc3f91",
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/jiaqiwang969/new-codex.git"
+      },
+      "original": {
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/jiaqiwang969/new-codex.git"
+      }
+    },
     "nix-snapd": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -445,6 +467,7 @@
         "home-manager": "home-manager",
         "jujutsu": "jujutsu",
         "neovim-nightly-overlay": "neovim-nightly-overlay",
+        "new-codex": "new-codex",
         "nix-snapd": "nix-snapd",
         "nixos-wsl": "nixos-wsl",
         "nixpkgs": "nixpkgs_3",
@@ -468,6 +491,27 @@
         "owner": "oxalica",
         "repo": "rust-overlay",
         "rev": "aa1e85921cfa04de7b6914982a94621fbec5cc02",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_2": {
+      "inputs": {
+        "nixpkgs": [
+          "new-codex",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1769828398,
+        "narHash": "sha256-zmnvRUm15QrlKH0V1BZoiT3U+Q+tr+P5Osi8qgtL9fY=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "a1d32c90c8a4ea43e9586b7e5894c179d5747425",
         "type": "github"
       },
       "original": {
