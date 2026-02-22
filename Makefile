@@ -270,23 +270,25 @@ wsl:
 	 nix build ".#nixosConfigurations.wsl.config.system.build.installer"
 
 
+
 # ---------------------------------------------------------------------------
 # OrbStack automated zero-to-hero bootstrap
 # ---------------------------------------------------------------------------
+
+# create a brand new OrbStack VM (analogous to vm/bootstrap0)
+.PHONY: orb/create
+orb/create:
+	@echo "Creating pure NixOS OrbStack machine ($(NIXNAME))..."
+	orb create nixos $(NIXNAME) || true
+
+# after orb/create, run this to finalize. After this, the VM is fully configured
+# and acting as the local Attic cache builder.
 .PHONY: orb/bootstrap-dev
 orb/bootstrap-dev:
-	@echo "=> 1. Creating pure NixOS OrbStack machine (nixos-dev)..."
-	orb create nixos nixos-dev || true
-	@echo "=> 2. Applying flake configuration to nixos-dev..."
+	$(MAKE) orb/create NIXNAME=nixos-dev
 	$(MAKE) switch NIXNAME=vm-aarch64-orb
-	@echo "=> 3. Initializing Attic Cache server on nixos-dev..."
 	$(MAKE) cache/init NIXADDR=nixos-dev
-	@echo "=> 4. Pushing core system closures to the local cache..."
 	$(MAKE) cache/push NIXADDR=nixos-dev
-	@echo "=> 🎉 Bootstrap of nixos-dev complete!"
-# ---------------------------------------------------------------------------
-# Attic binary cache management
-# ---------------------------------------------------------------------------
 
 # Initialize Attic on the VM: generate server secret, create cache, make it public.
 # Run this once after the first vm/switch that deploys atticd.
