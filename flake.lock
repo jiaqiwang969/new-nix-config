@@ -278,18 +278,17 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1771746578,
-        "narHash": "sha256-AE1AN/EnPrM7Q/DFszYPSLLtZGdJpEjC+Kgzle73wuo=",
-        "ref": "refs/heads/main",
-        "rev": "f28db977c1821df5214360b22bfa2b60e5bc3f91",
-        "shallow": true,
-        "type": "git",
-        "url": "https://github.com/jiaqiwang969/new-codex.git"
+        "lastModified": 1771754854,
+        "narHash": "sha256-D99X6+TcvAmhjMsHbwSLcHIqoTylSqY3N0BYqNJiz18=",
+        "owner": "jiaqiwang969",
+        "repo": "new-codex",
+        "rev": "b5a2158056f364dcea3c427e98c686fcf33d29a0",
+        "type": "github"
       },
       "original": {
-        "shallow": true,
-        "type": "git",
-        "url": "https://github.com/jiaqiwang969/new-codex.git"
+        "owner": "jiaqiwang969",
+        "repo": "new-codex",
+        "type": "github"
       }
     },
     "nix-snapd": {
