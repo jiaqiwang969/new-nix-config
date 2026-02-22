@@ -288,6 +288,13 @@ orb/bootstrap:
 	$(MAKE) cache/init NIXADDR=nixos-dev
 	$(MAKE) cache/push NIXADDR=nixos-dev
 
+# bootstrap an agent VM from scratch. This creates the VM and configures it
+# using the existing local Attic cache from nixos-dev. It does NOT start a new cache server.
+# Usage: make orb/bootstrap-agent NIXNAME=vm-aarch64-orb-agent-02
+orb/bootstrap-agent:
+	$(MAKE) orb/bootstrap0 NIXNAME=$(shell echo "$(NIXNAME)" | sed -n 's/.*-orb-\(.*\)/nixos-\1/p')
+	$(MAKE) switch NIXNAME=$(NIXNAME)
+
 # Initialize Attic on the VM: generate server secret, create cache, make it public.
 # Run this once after the first vm/switch that deploys atticd.
 # Secret is generated locally (openssl not available on VM) and uses HS256.
