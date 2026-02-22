@@ -269,6 +269,21 @@ vm/switch:
 wsl:
 	 nix build ".#nixosConfigurations.wsl.config.system.build.installer"
 
+
+# ---------------------------------------------------------------------------
+# OrbStack automated zero-to-hero bootstrap
+# ---------------------------------------------------------------------------
+.PHONY: orb/bootstrap-dev
+orb/bootstrap-dev:
+	@echo "=> 1. Creating pure NixOS OrbStack machine (nixos-dev)..."
+	orb create nixos nixos-dev || true
+	@echo "=> 2. Applying flake configuration to nixos-dev..."
+	$(MAKE) switch NIXNAME=vm-aarch64-orb
+	@echo "=> 3. Initializing Attic Cache server on nixos-dev..."
+	$(MAKE) cache/init NIXADDR=nixos-dev
+	@echo "=> 4. Pushing core system closures to the local cache..."
+	$(MAKE) cache/push NIXADDR=nixos-dev
+	@echo "=> 🎉 Bootstrap of nixos-dev complete!"
 # ---------------------------------------------------------------------------
 # Attic binary cache management
 # ---------------------------------------------------------------------------
