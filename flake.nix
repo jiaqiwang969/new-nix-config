@@ -73,7 +73,9 @@
 
         # Want the latest version of these
         claude-code = inputs.nixpkgs-unstable.legacyPackages.${prev.system}.claude-code;
-        codex = inputs.new-codex.packages.${prev.system}.default;
+        codex = (inputs.new-codex.packages.${prev.system}.default).overrideAttrs (old: {
+          CARGO_PROFILE_RELEASE_LTO = "off";
+        });
         nushell = inputs.nixpkgs-unstable.legacyPackages.${prev.system}.nushell;
         # Builds from the upstream jj input can run a long/failing test
         # suite on some systems, so skip checks here to avoid switch noise.

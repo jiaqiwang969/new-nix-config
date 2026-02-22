@@ -87,13 +87,47 @@
 
   # LXC 容器中 /etc/profiles/per-user 不会自动创建，
   # 但 home-manager useUserPackages=true 依赖它。手动链接 home-manager-path。
-  system.activationScripts.orbstack-hm-profile = lib.stringAfter [ "users" ] ''
-    HM_GEN="/home/jqwang/.local/state/home-manager/gcroots/current-home"
-    if [ -e "$HM_GEN/home-path" ]; then
-      mkdir -p /etc/profiles/per-user
-      ln -sfn "$(readlink -f "$HM_GEN/home-path")" /etc/profiles/per-user/jqwang
+  # 必须在 home-manager-jqwang.service 之后运行（它创建 current-home gcroot）。
+  systemd.services.orbstack-hm-profile = {
+    description = "Create per-user profile symlink for OrbStack LXC";
+    after = [ "home-manager-jqwang.service" ];
+    wants = [ "home-manager-jqwang.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      HM_GEN="/home/jqwang/.local/state/home-manager/gcroots/current-home"
+      if [ -e "$HM_GEN/home-path" ]; then
+        mkdir -p /etc/profiles/per-user
+        ln -sfn "$(readlink -f "$HM_GEN/home-path")" /etc/profiles/per-user/jqwang
+      fi
+    '';
+  };
+
+  # ~/.codex 符号链接到 Mac 宿主机，共享所有配置和状态
+  system.activationScripts.codex-symlink = ''
+    if [ ! -L /home/jqwang/.codex ]; then
+      rm -rf /home/jqwang/.codex
+      ln -sfn /mnt/mac/Users/jqwang/.codex /home/jqwang/.codex
+      chown -h 1000:users /home/jqwang/.codex
     fi
   '';
+
+  # 端口转发：容器 localhost:8317 → Mac 宿主机 host.internal:8317
+  # 使 codex 共享配置中的 cliproxy base_url 在容器内也能工作
+  systemd.services.cliproxy-forward = {
+    description = "Forward localhost:8317 to Mac host cliproxy";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:8317,fork,reuseaddr TCP:host.internal:8317";
+      Restart = "always";
+      RestartSec = 3;
+    };
+  };
 
   system.stateVersion = lib.mkForce "25.11";
   nixpkgs.config.allowUnfree = true;
