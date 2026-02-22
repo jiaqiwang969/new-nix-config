@@ -278,7 +278,7 @@ wsl:
 # bootstrap a brand new OrbStack VM. This is the equivalent of vm/bootstrap0
 # but specifically tailored for OrbStack's instant creation mechanism.
 orb/bootstrap0:
-	orb create nixos $(NIXNAME) || true
+	orb create nixos:unstable $(NIXNAME) || true
 
 # after orb/bootstrap0, run this to finalize. After this, the OrbStack VM
 # is fully configured, including the local Attic cache initialization.
