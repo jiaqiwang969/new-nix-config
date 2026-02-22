@@ -148,6 +148,7 @@ in {
     pkgs.chezmoi
     pkgs.eza
     pkgs.fd
+    pkgs.atuin
     pkgs.fzf
     pkgs.gh
     pkgs.htop
