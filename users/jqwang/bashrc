@@ -49,16 +49,20 @@ prompt_color
 #-------------------------------------------------------------------------------
 function rm() {
     # Block catastrophically dangerous patterns
+    local real_home real_root
+    real_home="$(realpath "$HOME" 2>/dev/null || echo "$HOME")"
+    real_root="$(realpath "/" 2>/dev/null || echo "/")"
     for arg in "$@"; do
         expanded="${arg/#\~/$HOME}"
         real=""
         if [ -e "$expanded" ]; then
-            real="$(cd "$expanded" 2>/dev/null && pwd)"
+            real="$(realpath "$expanded" 2>/dev/null)"
         fi
         if [ "$expanded" = "$HOME" ] \
             || [ "$expanded" = "$HOME/" ] \
             || [ "$expanded" = "/" ] \
-            || [ "$real" = "$HOME" ] \
+            || { [ -n "$real" ] && [ "$real" = "$real_home" ]; } \
+            || { [ -n "$real" ] && [ "$real" = "$real_root" ]; } \
             || [ "$real" = "/" ]; then
             echo "" >&2
             echo "╔══════════════════════════════════════════════════════╗" >&2

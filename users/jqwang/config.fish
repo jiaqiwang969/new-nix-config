@@ -163,16 +163,19 @@ alias fnix "nix-shell --run fish"
 #-------------------------------------------------------------------------------
 function rm --description "Safe rm: moves to trash, blocks HOME/root deletion"
     # Block catastrophically dangerous patterns
+    set -l real_home (realpath "$HOME" 2>/dev/null; or echo "$HOME")
+    set -l real_root (realpath "/" 2>/dev/null; or echo "/")
     for arg in $argv
         set -l expanded (string replace -r '^~' $HOME -- $arg)
         set -l real ""
         if test -e "$expanded"
-            set real (cd "$expanded" 2>/dev/null; and pwd)
+            set real (realpath "$expanded" 2>/dev/null)
         end
         if test "$expanded" = "$HOME" \
             -o "$expanded" = "$HOME/" \
             -o "$expanded" = "/" \
-            -o "$real" = "$HOME" \
+            -o \( -n "$real" -a "$real" = "$real_home" \) \
+            -o \( -n "$real" -a "$real" = "$real_root" \) \
             -o "$real" = "/"
             echo "" >&2
             echo "╔══════════════════════════════════════════════════════╗" >&2
