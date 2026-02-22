@@ -142,7 +142,7 @@ in {
     safe-rm
     real-rm
 
-    pkgs._1password-cli
+    (lib.mkIf isDarwin pkgs._1password-cli)
     pkgs.asciinema
     pkgs.bat
     pkgs.chezmoi
