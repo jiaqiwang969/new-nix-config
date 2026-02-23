@@ -53,10 +53,10 @@
 
   # 使用 nixos-dev 上的 Attic cache 加速构建（优先于官方 cache）
   nix.settings.substituters = lib.mkBefore [
-    "http://nixos-orb.local:8080/main"
+    "http://nixos-dev.orb.local:8080/main"
   ];
   nix.settings.trusted-public-keys = lib.mkAfter [
-    "main:9EEszuiyiG9xkuZmcZTL7EzLwqSEO9MEiViV7ymLNgs="
+    "main:79VGDHuDHe5ct6x6FhBKpRoUL6ybL9D8XedX+7XfDis="
   ];
 
   # 覆盖用户定义（uid=1000 以兼容 isNormalUser + per-user profile）

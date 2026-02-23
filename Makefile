@@ -92,15 +92,16 @@ IS_ORB := $(findstring -orb,$(NIXNAME))
 # The macOS path as seen from inside the OrbStack container
 ORB_NIXCONFIG := /mnt/mac$(MAKEFILE_DIR)
 
-# Attic cache URL and public key (passed via --option so fresh containers use it on first switch)
-ORB_ATTIC_CACHE := http://nixos-orb.local:8080/main
-ORB_ATTIC_KEY := main:7JXrt3wZGWJXf3M6WqaP89saCSLDJVW3faHlTngVfRA=
+# Attic cache: dynamically resolve nixos-dev's internal IP (198.18.x OrbStack proxy doesn't forward port 8080)
+ORB_ATTIC_HOST := $(shell orb -m nixos-dev bash -c 'hostname -I 2>/dev/null' 2>/dev/null | awk '{print $$1}')
+ORB_ATTIC_CACHE := http://$(ORB_ATTIC_HOST):8080/main
+ORB_ATTIC_KEY := main:79VGDHuDHe5ct6x6FhBKpRoUL6ybL9D8XedX+7XfDis=
 
 switch:
 ifeq ($(UNAME), Darwin)
 ifneq ($(IS_ORB),)
 	@orb -m $(ORB_MACHINE) -u root bash -c '\
-		if ! curl -sf $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
+		if ! curl -sf --connect-timeout 3 $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
 			CACHE_ENTRY="$(ORB_ATTIC_CACHE) https://cache.nixos.org/"; \
 		else \
 			CACHE_ENTRY="$(ORB_ATTIC_CACHE)"; \
@@ -125,7 +126,7 @@ test:
 ifeq ($(UNAME), Darwin)
 ifneq ($(IS_ORB),)
 	@orb -m $(ORB_MACHINE) -u root bash -c '\
-		if ! curl -sf $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
+		if ! curl -sf --connect-timeout 3 $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
 			CACHE_ENTRY="$(ORB_ATTIC_CACHE) https://cache.nixos.org/"; \
 		else \
 			CACHE_ENTRY="$(ORB_ATTIC_CACHE)"; \
@@ -292,6 +293,10 @@ orb/bootstrap:
 # using the existing local Attic cache from nixos-dev. It does NOT start a new cache server.
 # Usage: make orb/bootstrap-agent NIXNAME=vm-aarch64-orb-agent-02
 orb/bootstrap-agent:
+	@if [ -z "$(findstring -orb-,$(NIXNAME))" ]; then \
+		echo "Error: NIXNAME must be provided and contain '-orb-' (e.g., NIXNAME=vm-aarch64-orb-agent-02)"; \
+		exit 1; \
+	fi
 	$(MAKE) orb/bootstrap0 NIXNAME=$(shell echo "$(NIXNAME)" | sed -n 's/.*-orb-\(.*\)/nixos-\1/p')
 	$(MAKE) switch NIXNAME=$(NIXNAME)
 
