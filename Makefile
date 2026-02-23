@@ -1,340 +1,70 @@
-# Connectivity info for Linux VM
-NIXADDR ?= unset
-NIXPORT ?= 22
-NIXUSER ?= jqwang
-
-# Get the path to this Makefile and directory
+# 极简 NixOS / Darwin 部署 Makefile
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-
-# The name of the nixosConfiguration in the flake
-NIXNAME ?= vm-aarch64
-
-# OrbStack machine name (used when switching NixOS configs from macOS)
-# Convention: vm-aarch64-orb-agent → nixos-agent, vm-aarch64-orb → nixos-dev
-ORB_MACHINE ?= $(shell echo "$(NIXNAME)" | sed -n 's/.*-orb-\(.*\)/nixos-\1/p')
-ifeq ($(ORB_MACHINE),)
-ORB_MACHINE := nixos-dev
-endif
-
-# Disk device in the VM (sda for x86 SATA, vda for aarch64 virtio)
-NIXDISK ?= vda
-
-# SSH options that are used. These aren't meant to be overridden but are
-# reused a lot so we just store them up here.
-SSH_OPTIONS=-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
-
-# Read the first available public key from common locations and
-# inject it during bootstrap0 (so stage 2 can use key auth immediately).
-SSH_PUBLIC_KEY_PATH ?=
-SSH_PUBLIC_KEY_B64_DECODED := $(shell \
-	if [ -n "$(SSH_PUBLIC_KEY_PATH)" ] && [ -f "$(SSH_PUBLIC_KEY_PATH)" ]; then \
-		cat "$(SSH_PUBLIC_KEY_PATH)"; \
-	elif [ -f "$(HOME)/.ssh/id_ed25519.pub" ]; then \
-		cat "$(HOME)/.ssh/id_ed25519.pub"; \
-	elif [ -f "$(HOME)/.ssh/id_rsa.pub" ]; then \
-		cat "$(HOME)/.ssh/id_rsa.pub"; \
-	elif [ -f "$(HOME)/.ssh/id_ecdsa.pub" ]; then \
-		cat "$(HOME)/.ssh/id_ecdsa.pub"; \
-	elif [ -f "$(HOME)/.ssh/id_ecdsa_sk.pub" ]; then \
-		cat "$(HOME)/.ssh/id_ecdsa_sk.pub"; \
-	else \
-		echo ""; \
-	fi)
-
-SSH_PUBLIC_KEY_B64 := $(shell \
-	if [ -n "$(SSH_PUBLIC_KEY_PATH)" ] && [ -f "$(SSH_PUBLIC_KEY_PATH)" ]; then \
-		cat "$(SSH_PUBLIC_KEY_PATH)"; \
-	elif [ -f "$(HOME)/.ssh/id_ed25519.pub" ]; then \
-		cat "$(HOME)/.ssh/id_ed25519.pub"; \
-	elif [ -f "$(HOME)/.ssh/id_rsa.pub" ]; then \
-		cat "$(HOME)/.ssh/id_rsa.pub"; \
-	elif [ -f "$(HOME)/.ssh/id_ecdsa.pub" ]; then \
-		cat "$(HOME)/.ssh/id_ecdsa.pub"; \
-	elif [ -f "$(HOME)/.ssh/id_ecdsa_sk.pub" ]; then \
-		cat "$(HOME)/.ssh/id_ecdsa_sk.pub"; \
-	else \
-		echo ""; \
-	fi | base64 | tr -d '\n')
-
-ifneq ($(strip $(SSH_PUBLIC_KEY_B64)),)
-BOOTSTRAP0_AUTHKEYS = \
-	mkdir -p /mnt/root/.ssh /mnt/home/jqwang/.ssh; \
-	echo '$(SSH_PUBLIC_KEY_B64)' | base64 -d > /mnt/root/.ssh/authorized_keys; \
-	cp /mnt/root/.ssh/authorized_keys /mnt/home/jqwang/.ssh/authorized_keys; \
-	chmod 700 /mnt/root/.ssh /mnt/home/jqwang/.ssh; \
-	chmod 600 /mnt/root/.ssh/authorized_keys /mnt/home/jqwang/.ssh/authorized_keys; \
-	chown -R 0:0 /mnt/root/.ssh || true; \
-	chown -R 1000:100 /mnt/home/jqwang/.ssh || true
-endif
-
-# Optional proxy variables for slow networks.
-# Example:
-#   export https_proxy=http://127.0.0.1:7890
-#   export http_proxy=http://127.0.0.1:7890
-#   export all_proxy=socks5://127.0.0.1:7890
-PROXY_ENV :=
-ifneq ($(strip $(http_proxy)),)
-PROXY_ENV += http_proxy=$(http_proxy) HTTPS_PROXY=$(http_proxy)
-endif
-ifneq ($(strip $(https_proxy)),)
-PROXY_ENV += https_proxy=$(https_proxy) HTTPS_PROXY=$(https_proxy)
-endif
-ifneq ($(strip $(all_proxy)),)
-PROXY_ENV += all_proxy=$(all_proxy) ALL_PROXY=$(all_proxy)
-endif
-
-# We need to do some OS switching below.
-UNAME := $(shell uname)
-
-# Check if NIXNAME targets an OrbStack container (convention: name contains "-orb")
-IS_ORB := $(findstring -orb,$(NIXNAME))
-
-# The macOS path as seen from inside the OrbStack container
 ORB_NIXCONFIG := /mnt/mac$(MAKEFILE_DIR)
 
-# Attic cache: dynamically resolve nixos-dev's internal IP (198.18.x OrbStack proxy doesn't forward port 8080)
-ORB_ATTIC_HOST := $(shell orb -m nixos-dev bash -c 'hostname -I 2>/dev/null' 2>/dev/null | awk '{print $$1}')
-ORB_ATTIC_CACHE := http://$(ORB_ATTIC_HOST):8080/main
 ORB_ATTIC_KEY := main:79VGDHuDHe5ct6x6FhBKpRoUL6ybL9D8XedX+7XfDis=
 
-switch:
-ifeq ($(UNAME), Darwin)
-ifneq ($(IS_ORB),)
-	@orb -m $(ORB_MACHINE) -u root bash -c '\
-		if ! curl -sf --connect-timeout 3 $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
-			CACHE_ENTRY="$(ORB_ATTIC_CACHE) https://cache.nixos.org/"; \
-		else \
-			CACHE_ENTRY="$(ORB_ATTIC_CACHE)"; \
-		fi; \
-		if ! grep -q "^substituters = $$CACHE_ENTRY$$" /etc/nix/nix.conf 2>/dev/null; then \
-			rm -f /etc/nix/nix.conf && \
-			cp /etc/static/nix/nix.conf /etc/nix/nix.conf && \
-			sed -i "s|substituters = .*|substituters = $$CACHE_ENTRY|" /etc/nix/nix.conf && \
-			sed -i "s|trusted-public-keys = |trusted-public-keys = $(ORB_ATTIC_KEY) |" /etc/nix/nix.conf && \
-			systemctl restart nix-daemon 2>/dev/null || true; \
-		fi'
-	orb -m $(ORB_MACHINE) -u root bash -c 'cd $(ORB_NIXCONFIG) && $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake ".#${NIXNAME}"'
-else
-	$(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 nix build --impure --extra-experimental-features nix-command --extra-experimental-features flakes ".#darwinConfigurations.${NIXNAME}.system"
-	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild switch --impure --flake "$$(pwd)#${NIXNAME}"
-endif
-else
-	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake ".#${NIXNAME}"
-endif
+# =========================================================================
+# 1. 部署本机 Mac (M4)
+# =========================================================================
+macbook-pro-m4:
+	NIXPKGS_ALLOW_UNFREE=1 nix build --impure --extra-experimental-features nix-command --extra-experimental-features flakes ".#darwinConfigurations.macbook-pro-m4.system"
+	sudo NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild switch --impure --flake "$$(pwd)#macbook-pro-m4"
 
-test:
-ifeq ($(UNAME), Darwin)
-ifneq ($(IS_ORB),)
-	@orb -m $(ORB_MACHINE) -u root bash -c '\
-		if ! curl -sf --connect-timeout 3 $(ORB_ATTIC_CACHE)/nix-cache-info > /dev/null; then \
-			CACHE_ENTRY="$(ORB_ATTIC_CACHE) https://cache.nixos.org/"; \
-		else \
-			CACHE_ENTRY="$(ORB_ATTIC_CACHE)"; \
-		fi; \
-		if ! grep -q "^substituters = $$CACHE_ENTRY$$" /etc/nix/nix.conf 2>/dev/null; then \
-			rm -f /etc/nix/nix.conf && \
-			cp /etc/static/nix/nix.conf /etc/nix/nix.conf && \
-			sed -i "s|substituters = .*|substituters = $$CACHE_ENTRY|" /etc/nix/nix.conf && \
-			sed -i "s|trusted-public-keys = |trusted-public-keys = $(ORB_ATTIC_KEY) |" /etc/nix/nix.conf && \
-			systemctl restart nix-daemon 2>/dev/null || true; \
-		fi'
-	orb -m $(ORB_MACHINE) -u root bash -c 'cd $(ORB_NIXCONFIG) && $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild test --fast --impure --flake ".#${NIXNAME}"'
-else
-	$(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 nix build --impure ".#darwinConfigurations.${NIXNAME}.system"
-	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild test --impure --flake "$$(pwd)#${NIXNAME}"
-endif
-else
-	sudo $(PROXY_ENV) NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild test --fast --impure --flake ".#$(NIXNAME)"
-endif
-
-# This builds the given NixOS configuration and pushes the results to the
-# cache. This does not alter the current running system. This requires
-# cachix authentication to be configured out of band.
-cache:
-	$(PROXY_ENV) nix build '.#nixosConfigurations.$(NIXNAME).config.system.build.toplevel' --json \
-		| jq -r '.[].outputs | to_entries[].value' \
-		| cachix push mitchellh-nixos-config
-
-# Backup secrets so that we can transer them to new machines via
-# sneakernet or other means.
-.PHONY: secrets/backup
-secrets/backup:
-	tar -czvf $(MAKEFILE_DIR)/backup.tar.gz \
-		-C $(HOME) \
-		--exclude='.gnupg/.#*' \
-		--exclude='.gnupg/S.*' \
-		--exclude='.gnupg/*.conf' \
-		--exclude='.ssh/environment' \
-		.ssh/ \
-		.gnupg
-
-.PHONY: secrets/restore
-secrets/restore:
-	if [ ! -f $(MAKEFILE_DIR)/backup.tar.gz ]; then \
-		echo "Error: backup.tar.gz not found in $(MAKEFILE_DIR)"; \
-		exit 1; \
-	fi
-	echo "Restoring SSH keys and GPG keyring from backup..."
-	mkdir -p $(HOME)/.ssh $(HOME)/.gnupg
-	tar -xzvf $(MAKEFILE_DIR)/backup.tar.gz -C $(HOME)
-	chmod 700 $(HOME)/.ssh $(HOME)/.gnupg
-	chmod 600 $(HOME)/.ssh/* || true
-	chmod 700 $(HOME)/.gnupg/* || true
-
-# bootstrap a brand new VM. The VM should have NixOS ISO on the CD drive
-# and just set the password of the root user to "root". This will install
-# NixOS. After installing NixOS, you must reboot and set the root password
-# for the next step.
-#
-# NOTE(mitchellh): I'm sure there is a way to do this and bootstrap all
-# in one step but when I tried to merge them I got errors. One day.
-vm/bootstrap0:
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		parted /dev/$(NIXDISK) -- mklabel gpt; \
-		parted /dev/$(NIXDISK) -- mkpart primary 512MB -8GB; \
-		parted /dev/$(NIXDISK) -- mkpart primary linux-swap -8GB 100\%; \
-		parted /dev/$(NIXDISK) -- mkpart ESP fat32 1MB 512MB; \
-		parted /dev/$(NIXDISK) -- set 3 esp on; \
-		sleep 1; \
-		mkfs.ext4 -L nixos /dev/$(NIXDISK)1; \
-		mkswap -L swap /dev/$(NIXDISK)2; \
-		mkfs.fat -F 32 -n boot /dev/$(NIXDISK)3; \
-		sleep 1; \
-		mount /dev/disk/by-label/nixos /mnt; \
-		mkdir -p /mnt/boot; \
-		mount /dev/disk/by-label/boot /mnt/boot; \
-		nixos-generate-config --root /mnt; \
-		sed --in-place '/system\.stateVersion = .*/a \
-			nix.package = pkgs.nixVersions.latest;\n \
-			nix.extraOptions = \"experimental-features = nix-command flakes\";\n \
-			nix.settings.substituters = [\"https://nix-community.cachix.org\" \"https://jj-vcs.cachix.org\" \"https://mitchellh-nixos-config.cachix.org\"];\n \
-			nix.settings.trusted-public-keys = [\"nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=\" \"jj-vcs.cachix.org-1:sn2MddHr1ztFndbsGHMHV6xpMGHlHTb0FQGR/UMqybM=\" \"mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=\"];\n \
-  			services.openssh.enable = true;\n \
-			services.openssh.settings.PasswordAuthentication = true;\n \
-			services.openssh.settings.PermitRootLogin = \"yes\";\n \
-			users.users.root.initialPassword = \"root\";\n \
-		' /mnt/etc/nixos/configuration.nix; \
-		$(BOOTSTRAP0_AUTHKEYS); \
-		nixos-install --no-root-passwd && reboot; \
-	"
-
-# after bootstrap0, run this to finalize. After this, do everything else
-# in the VM unless secrets change.
-vm/bootstrap:
-	NIXUSER=root $(MAKE) vm/copy
-	NIXUSER=root $(MAKE) vm/switch
-	$(MAKE) vm/secrets
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		sudo reboot; \
-	"
-
-# copy our secrets into the VM
-vm/secrets:
-	# GPG keyring (skip if not present)
-	@if [ -d "$(HOME)/.gnupg" ]; then \
-		rsync -av -e 'ssh $(SSH_OPTIONS)' \
-			--exclude='.#*' \
-			--exclude='S.*' \
-			--exclude='*.conf' \
-			$(HOME)/.gnupg/ $(NIXUSER)@$(NIXADDR):~/.gnupg; \
-	else \
-		echo "Skipping .gnupg (not found)"; \
-	fi
-	# SSH keys
-	rsync -av -e 'ssh $(SSH_OPTIONS)' \
-		--exclude='environment' \
-		$(HOME)/.ssh/ $(NIXUSER)@$(NIXADDR):~/.ssh
-
-# copy the Nix configurations into the VM.
-vm/copy:
-	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
-		--exclude='vendor/' \
-		--exclude='.git/' \
-		--exclude='.git-crypt/' \
-		--exclude='.jj/' \
-		--exclude='iso/' \
-		--rsync-path="sudo rsync" \
-		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):/nix-config
-
-# run the nixos-rebuild switch command. This does NOT copy files so you
-# have to run vm/copy before.
-# We pass the Attic cache by IP via --option so it works even before
-# avahi/mDNS is available (NixOS /etc/hosts is read-only).
-vm/switch:
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		sudo NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake \"/nix-config#${NIXNAME}\" \
-	"
-
-# Build a WSL installer
-.PHONY: wsl
-wsl:
-	 nix build ".#nixosConfigurations.wsl.config.system.build.installer"
-
-
-
-# ---------------------------------------------------------------------------
-# OrbStack automated zero-to-hero bootstrap
-# ---------------------------------------------------------------------------
-
-# bootstrap a brand new OrbStack VM. This is the equivalent of vm/bootstrap0
-# but specifically tailored for OrbStack's instant creation mechanism.
-orb/bootstrap0:
-	orb create nixos:unstable $(NIXNAME) || true
-
-# after orb/bootstrap0, run this to finalize. After this, the OrbStack VM
-# is fully configured, including the local Attic cache initialization.
-orb/bootstrap:
-	$(MAKE) orb/bootstrap0 NIXNAME=nixos-dev
-	$(MAKE) switch NIXNAME=vm-aarch64-orb
-	$(MAKE) cache/init NIXADDR=nixos-dev
-	$(MAKE) cache/push NIXADDR=nixos-dev
-
-# bootstrap an agent VM from scratch. This creates the VM and configures it
-# using the existing local Attic cache from nixos-dev. It does NOT start a new cache server.
-# Usage: make orb/bootstrap-agent NIXNAME=vm-aarch64-orb-agent-02
-orb/bootstrap-agent:
-	@if [ -z "$(findstring -orb-,$(NIXNAME))" ]; then \
-		echo "Error: NIXNAME must be provided and contain '-orb-' (e.g., NIXNAME=vm-aarch64-orb-agent-02)"; \
-		exit 1; \
-	fi
-	$(MAKE) orb/bootstrap0 NIXNAME=$(shell echo "$(NIXNAME)" | sed -n 's/.*-orb-\(.*\)/nixos-\1/p')
-	$(MAKE) switch NIXNAME=$(NIXNAME)
-
-# Initialize Attic on the VM: generate server secret, create cache, make it public.
-# Run this once after the first vm/switch that deploys atticd.
-# Secret is generated locally (openssl not available on VM) and uses HS256.
-.PHONY: cache/init
-cache/init:
-	@echo "Initializing Attic on $(NIXADDR) ..."
-	@SECRET=$$(openssl rand -hex 64) && \
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) bash -c "'\
+# =========================================================================
+# 2. 部署并更新本地 Cache 节点 (nixos-dev)
+# =========================================================================
+orb-cache:
+	orb create nixos:unstable nixos-dev || true
+	$(MAKE) _switch_orb_node NAME=nixos-dev
+	@echo "Initializing Attic cache server on nixos-dev..."
+	@orb -m nixos-dev -u root bash -c '\
 		if [ ! -f /var/lib/atticd/env ]; then \
-			sudo mkdir -p /var/lib/atticd && \
-			echo ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64=$$SECRET | sudo tee /var/lib/atticd/env > /dev/null && \
-			sudo chmod 600 /var/lib/atticd/env && \
-			sudo systemctl restart atticd && \
+			mkdir -p /var/lib/atticd && \
+			echo ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64=$$(openssl rand -hex 64) > /var/lib/atticd/env && \
+			chmod 600 /var/lib/atticd/env && \
+			systemctl restart atticd && \
 			sleep 3; \
 		fi && \
-		TOKEN=\$$(sudo atticd-atticadm make-token --sub admin --validity 10y \
-			--pull \"*\" --push \"*\" --create-cache \"*\" --configure-cache \"*\" \
-			--configure-cache-retention \"*\" --destroy-cache \"*\") && \
-		attic login local http://localhost:8080 \$$TOKEN && \
+		TOKEN=$$(atticd-atticadm make-token --sub admin --validity 10y \
+			--pull "*" --push "*" --create-cache "*" --configure-cache "*" \
+			--configure-cache-retention "*" --destroy-cache "*") && \
+		attic login local http://localhost:8080 $$TOKEN && \
 		(attic cache create main 2>/dev/null || true) && \
-		attic cache configure main --public --upstream-cache-key-name \"\" && \
-		echo --- && \
-		echo Attic cache ready. Signing public key: && \
-		attic cache info main 2>&1 | grep \"Public Key\" \
-	'"
+		attic cache configure main --public --upstream-cache-key-name ""'
+	@echo "Pushing all /nix/store/* paths to Attic cache..."
+	@orb -m nixos-dev -u root bash -c 'nix path-info --all | attic push main --stdin'
 
-# Push all store paths on the VM to the Attic cache.
-.PHONY: cache/push
-cache/push:
-	@echo "Pushing all store paths to Attic cache ..."
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) bash -c "' \
-		nix path-info --all | attic push main --stdin \
-	'"
+# =========================================================================
+# 3. 部署 Agent 节点 (用法: make orb-agent/01)
+# =========================================================================
+orb-agent/%:
+	orb create nixos:unstable nixos-agent-$* || true
+	$(MAKE) _switch_orb_node NAME=nixos-agent-$*
 
-# Test that the local Attic cache is reachable from the host.
-.PHONY: cache/test
-cache/test:
-	@curl -sf http://nixos-orb.local:8080/main/nix-cache-info && echo "Cache is up!" || echo "Cache unreachable."
+# -------------------------------------------------------------------------
+# 内部命令：统一处理 OrbStack 容器的 NixOS 切换
+# -------------------------------------------------------------------------
+_switch_orb_node:
+	@DEV_IP=$$(orb -m nixos-dev bash -c "hostname -I 2>/dev/null" 2>/dev/null | awk '{print $$1}'); \
+	if [ -z "$$DEV_IP" ]; then \
+		echo "Warning: could not resolve nixos-dev IP, skipping cache."; \
+	else \
+		echo "Configuring cache to http://$$DEV_IP:8080/main ..."; \
+		echo 'CACHE_URL="http://'$$DEV_IP':8080/main"' > .tmp_cache_script.sh; \
+		echo 'if ! curl -sf --connect-timeout 3 "$$CACHE_URL/nix-cache-info" > /dev/null; then' >> .tmp_cache_script.sh; \
+		echo '  CACHE_ENTRY="$$CACHE_URL https://cache.nixos.org/"' >> .tmp_cache_script.sh; \
+		echo 'else' >> .tmp_cache_script.sh; \
+		echo '  CACHE_ENTRY="$$CACHE_URL"' >> .tmp_cache_script.sh; \
+		echo 'fi' >> .tmp_cache_script.sh; \
+		echo 'if ! grep -q "^substituters = $$CACHE_ENTRY$$" /etc/nix/nix.conf 2>/dev/null; then' >> .tmp_cache_script.sh; \
+		echo '  rm -f /etc/nix/nix.conf' >> .tmp_cache_script.sh; \
+		echo '  cp /etc/static/nix/nix.conf /etc/nix/nix.conf' >> .tmp_cache_script.sh; \
+		echo '  sed -i "s|substituters = .*|substituters = $$CACHE_ENTRY|" /etc/nix/nix.conf' >> .tmp_cache_script.sh; \
+		echo '  sed -i "s|trusted-public-keys = |trusted-public-keys = $(ORB_ATTIC_KEY) |" /etc/nix/nix.conf' >> .tmp_cache_script.sh; \
+		echo '  systemctl restart nix-daemon 2>/dev/null || true' >> .tmp_cache_script.sh; \
+		echo 'fi' >> .tmp_cache_script.sh; \
+		cat .tmp_cache_script.sh | orb -m $(NAME) -u root bash; \
+		rm -f .tmp_cache_script.sh; \
+	fi
+	orb -m $(NAME) -u root bash -c 'cd $(ORB_NIXCONFIG) && NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --fast --impure --flake ".#$(NAME)"'

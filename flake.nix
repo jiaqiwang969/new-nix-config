@@ -105,27 +105,27 @@
       user   = "jqwang";
     };
 
-nixosConfigurations.vm-aarch64-orb = mkSystem "vm-aarch64-orb" {
+nixosConfigurations.nixos-dev = mkSystem "nixos-dev" {
       system = "aarch64-linux";
       user   = "jqwang";
     };
 
-    nixosConfigurations.vm-aarch64-orb-agent = mkSystem "vm-aarch64-orb-agent" {
+    nixosConfigurations.nixos-agent-01 = mkSystem "nixos-agent-01" {
       system = "aarch64-linux";
       user   = "jqwang";
     };
 
-    nixosConfigurations.vm-aarch64-orb-debug-base = mkSystem "vm-aarch64-orb-debug-base" {
+    nixosConfigurations.nixos-debug-base = mkSystem "nixos-debug-base" {
       system = "aarch64-linux";
       user   = "jqwang";
     };
 
-    nixosConfigurations.vm-aarch64-orb-agent-02 = mkSystem "vm-aarch64-orb-agent-02" {
+    nixosConfigurations.nixos-agent-02 = mkSystem "nixos-agent-02" {
       system = "aarch64-linux";
       user   = "jqwang";
     };
 
-    nixosConfigurations.vm-aarch64-orb-agent-03 = mkSystem "vm-aarch64-orb-agent-03" {
+    nixosConfigurations.nixos-agent-03 = mkSystem "nixos-agent-03" {
       system = "aarch64-linux";
       user   = "jqwang";
     };
@@ -141,7 +141,7 @@ nixosConfigurations.vm-aarch64-orb = mkSystem "vm-aarch64-orb" {
       wsl    = true;
     };
 
-    darwinConfigurations.macbook-pro-m1 = mkSystem "macbook-pro-m1" {
+    darwinConfigurations.macbook-pro-m4 = mkSystem "macbook-pro-m4" {
       system = "aarch64-darwin";
       user   = "jqwang";
       darwin = true;

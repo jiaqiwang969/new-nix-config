@@ -1,112 +1,58 @@
-# NixOS 系统配置
+# NixOS / macOS Configurations
 
-我的 NixOS / nix-darwin 统一配置仓库。使用 Nix Flakes 管理 macOS 主机和 OrbStack NixOS 容器的开发环境。
-
-## 架构
-
-```
-macOS (nix-darwin)          OrbStack NixOS (LXC 容器)
-┌─────────────────┐         ┌──────────────────────┐
-│ macbook-pro-m1  │         │  vm-aarch64-orb       │
-│ Homebrew + Nix  │  ←───→  │  终端开发环境          │
-│ GUI 应用        │ 文件共享  │  git/nvim/jj/claude   │
-└─────────────────┘ /mnt/mac └──────────────────────┘
-```
-
-- macOS 端通过 nix-darwin 管理 Homebrew、shell 配置、系统设置
-- OrbStack NixOS 容器作为 Linux 开发环境，共享 macOS 文件系统（`/mnt/mac/`）
-- home-manager 统一管理两端的用户配置（shell、编辑器、git 等）
-
-
-## 愿景与测试哲学：沙盒定格与极速环境复刻
-
-基于 NixOS + OrbStack + Attic 的缓存闭环，我们构建了一套极速的计算节点分发机制。
-
-**核心思想：**
-> “我打算把软件关进 VM 小屋里面。一旦它出错，就立刻‘时间定格’。从这个节点里 clone 出一整套完全相同的场景，然后在克隆体里修复错误。修复验证成功后，通过 undo 机制替换掉出错那一刻的‘定格’，然后继续运行。如果还能修复，就继续；如果不能，则重复这个过程。”
-
-**架构实现与速度优化：**
-1. **全局主节点 (`nixos-dev`) 缓存预热**：
-   - 使用 `nixos-dev` 作为主控开发环境与第一节点。它内置了 **Attic 二进制缓存服务**。
-   - 通过 `make cache/push`，主节点构建出的所有系统镜像包会被推送至本地网络的 Attic 仓库中。
-2. **`?shallow=1` 浅克隆求值与 `--fast` 极速部署**：
-   - 我们的 `flake.nix` 对依赖的远端仓库开启了浅克隆（shallow fetch），去除了克隆完整 Git 历史的巨大网络开销，将 Nix 的“求值阶段”耗时降到了毫秒级别。
-   - `Makefile` 的部署动作加入了 `--fast` 参数，跳过繁琐的系统依赖检查。
-3. **Agent 节点的无网秒级弹出**：
-   - 当需要复刻当前环境（或创建一个新的测试舱）时，我们只需通过 `orb create nixos:unstable nixos-agent-xx` 拉起一个极轻量的空壳。
-   - 在部署过程中，Agent 节点通过动态探针（Dynamic Cache Probing）自动感知到局域网的 Attic 缓存，**直接屏蔽 `cache.nixos.org` 的外网干扰**。
-   - 一套包含了 Neovim、Git、Fish 及各类开发工具链的完整系统，能够在 **1分钟以内** 纯局域网拉取完毕并瞬间复原出和主控机一模一样的生产环境。
-
-这套机制让我们能够放肆地进行危险的破坏性实验、复杂的多节点分布式网络调试以及系统级 BUG 追踪，随时“快照备份”，随时“平行克隆”。
-
-## 快速开始
-
-
-### macOS
-
-```bash
-# 首次安装 nix-darwin 后
-make switch NIXNAME=macbook-pro-m1
-```
-
-### OrbStack NixOS
-
-```bash
-# 1. 创建容器
-orb create nixos:25.11 nixos-dev
-
-# 2. 在容器内 apply 配置
-orb -m nixos-dev -u root bash -c \
-  'cd /mnt/mac/Users/jqwang/00-nixos-config/nixos-config && \
-   NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 \
-   nixos-rebuild switch --impure --flake ".#vm-aarch64-orb"'
-
-# 3. 进入开发环境
-orb -m nixos-dev
-# 或 SSH
-ssh jqwang@nixos-dev@orb
-```
-
-## 目录结构
-
-```
-.
-├── flake.nix                    # Flake 入口，定义所有系统配置
-├── Makefile                     # 常用命令（switch/test/cache/bootstrap）
-├── lib/mksystem.nix             # 系统构建函数
-├── machines/
-│   ├── macbook-pro-m1.nix       # macOS nix-darwin 配置
-│   ├── vm-aarch64-orb.nix       # OrbStack NixOS 容器配置
-│   ├── vm-shared.nix            # Linux VM 共享配置
-│   ├── vm-aarch64.nix           # VMware Fusion aarch64
-│   ├── vm-aarch64-prl.nix       # Parallels aarch64
-│   ├── vm-intel.nix             # x86_64 VM
-│   ├── wsl.nix                  # WSL 配置
-│   └── hardware/                # 硬件配置
-├── modules/
-│   ├── attic.nix                # Attic 二进制缓存
-│   └── specialization/          # GUI 桌面环境（Plasma/i3/GNOME）
-└── users/jqwang/
-    ├── home-manager.nix         # home-manager 主配置
-    ├── nixos.nix                # NixOS 用户配置
-    ├── darwin.nix               # macOS 用户配置
-    ├── config.fish              # Fish shell 配置
-    └── ...                      # 其他 dotfiles
-```
+极简部署指南。
 
 ## 常用命令
 
+### 1. 部署本机 Mac
+直接应用当前仓库的配置到宿主机 (M4):
 ```bash
-make switch NIXNAME=macbook-pro-m1    # macOS 切换配置
-make switch NIXNAME=vm-aarch64-orb    # NixOS 切换配置（需在容器内执行）
-make test NIXNAME=<name>              # 测试配置（不激活）
-make wsl                              # 构建 WSL 根文件系统
+make macbook-pro-m4
 ```
 
-## 致谢
+### 2. 初始化缓存与开发节点 (nixos-dev)
+创建/更新 `nixos-dev`，启动内部 Attic 缓存服务，并自动将整个 Nix Store 推送至 cache 中：
+```bash
+make orb-cache
+```
+*提示：该命令是**完全幂等且安全**的，即使系统已经部署好也可以随时多次运行。它在底层会自动处理以下细节：*
+- **容器复用**：如果 `nixos-dev` 已经存在，则保持原样，不会破坏或重建。
+- **配置热更**：执行 `nixos-rebuild switch`，如果没有改动则会在 1-2 秒内完成（空跑）；若有改动则只构建更新部分。
+- **缓存鉴权**：系统会检查 `/var/lib/atticd/env` 秘钥是否存在，若存在则跳过初始化，保护已有缓存数据。随后自动配置并激活 `main` 缓存的公共访问权限（`Configured "main" on "local"`）。
+- **增量推送**：执行 `attic push` 时会自动查询服务端 hash，已经存在的包会被秒跳过，只将**新增的编译产物**同步到缓存中，实现极速增量推送。
 
-本仓库 fork 自 [mitchellh/nixos-config](https://github.com/mitchellh/nixos-config)，在此基础上做了大量定制。
+### 3. 部署 Agent 节点
+通过上述缓存节点加速，极速部署出新的 Agent 容器环境：
+```bash
+make orb-agent/01
+make orb-agent/02
+# 依此类推...
+```
+*架构细节与状态打通：* 
+基于我们核心的 `orb-agent-base.nix`，为了确保这些 Agent 能和外网的代理及主机的上下文联动，容器被专门做了如下处理：
+- **挂载 `.codex` 上下文**：启动时自动将容器内 `~/.codex` 软链接挂载到宿主机（Mac）的 `~/.codex`。使得所有跑在容器里的 Agent 能立刻拥有和宿主机完全同步的 API 秘钥、技能文件（skills）以及历史记忆流。
+- **打通 `8317` 代理端口**：由于你的本地 CLIProxyAPI（API代理）运行在宿主的 `8317` 端口上，Agent 内会自动利用 `socat` 后台服务将容器里的 `localhost:8317` 反向透传到宿主机的 `host.internal:8317`，保证在全封闭容器环境内的模型请求也能经过统一的 API 网关。
 
-## License
+## 依赖锁定 (Freeze)
 
-MIT
+更新所有 Flake 依赖并锁定版本（Freeze）：
+```bash
+nix flake update
+```
+*提示：Nix 默认依靠 `flake.lock` 来冻结 (freeze) 依赖版本，确保无论在哪台机器上构建，都会使用完全一致的依赖包。*
+
+## 开发与重构经验 (Lessons Learned)
+
+在将构建流程精简化的过程中，我们遇到了几个底层坑，特此记录以防后人踩坑：
+
+1. **OrbStack 的嵌套 SSH 死锁**
+   - **坑**：最初我们在 Makefile 中的容器构建脚本 (`orb -m nixos-agent ...`) 里，再次内嵌调用了 `orb -m nixos-dev bash -c ...` 来动态获取缓存节点的 IP。这导致了底层 Unix Socket (`@->@`) 发生“Connection reset by peer”以及 SSH 代理套接字崩溃死锁，容器直接坏死。
+   - **解法**：绝不能让 `orb` 命令行嵌套调用。必须在 Mac 宿主机的 Makefile 顶层解析出 `DEV_IP=$(orb -m nixos-dev ...)`，然后将其作为普通字符串变量，喂给后续独立启动的构建容器。
+
+2. **复杂的 Bash 单/双引号逃逸 (Quoting Hell)**
+   - **坑**：在使用 `bash -c "..."` 传递多行配置脚本，且脚本内部还包含 `"`、`$` 及正则过滤符号时，Makefile 的解析和 Bash 展开发生了错乱，导致容器内执行到了类似 `sed: unknown command: "` 的语法错误。
+   - **解法**：放弃在长命令参数中做字符串拼接。Makefile 改为通过 `echo` 和单引号（`echo '...'`）将逻辑写到宿主机的一个临时脚本文本（`.tmp_cache_script.sh`）中，然后使用 `cat script.sh | orb -m xxx bash` 以标准输入的方式喂给容器，杜绝了一切转义异常。
+
+3. **Nix Flake 的 Git Tracked 盲区**
+   - **坑**：重命名 NixOS 目标或添加新的 `.nix` 配置后（如 `nixos-agent-01.nix`），如果直接运行 `nixos-rebuild`，会报 `does not provide attribute...` 找不到该目标的错误。
+   - **解法**：当项目根目录是一个 Git 仓库时，Nix **严格只对已经被 Git Tracked (暂存或提交) 的文件进行求值**。必须先 `git add flake.nix machines/*.nix` 才能让 Nix 看见这些新增的配置。

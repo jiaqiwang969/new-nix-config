@@ -14,7 +14,7 @@
   boot.kernelPackages = lib.mkForce pkgs.linuxPackages;
 
   # 网络由 OrbStack 管理
-  networking.hostName = lib.mkForce "nixos-orb";
+  networking.hostName = lib.mkForce "nixos-dev";
   networking.useDHCP = lib.mkForce false;
   networking.useHostResolvConf = lib.mkForce false;
   networking.dhcpcd.enable = lib.mkForce false;
