@@ -21,6 +21,26 @@
         "type": "github"
       }
     },
+    "endpoint-sec": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772098083,
+        "narHash": "sha256-GDKfsOqM3zcOYznHMto/2HBNrUa16F0LvlYRT5hGcew=",
+        "owner": "jiaqiwang969",
+        "repo": "endpoint-sec",
+        "rev": "ff33290938b31ebcb9dc77ec0553302ff7888d65",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jiaqiwang969",
+        "repo": "endpoint-sec",
+        "type": "github"
+      }
+    },
     "fish-foreign-env": {
       "flake": false,
       "locked": {
@@ -461,6 +481,7 @@
     "root": {
       "inputs": {
         "darwin": "darwin",
+        "endpoint-sec": "endpoint-sec",
         "fish-foreign-env": "fish-foreign-env",
         "fish-fzf": "fish-fzf",
         "home-manager": "home-manager",

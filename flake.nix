@@ -29,6 +29,9 @@
     new-codex.url = "github:jiaqiwang969/new-codex?shallow=1";
     new-codex.inputs.nixpkgs.follows = "nixpkgs";
 
+    endpoint-sec.url = "github:jiaqiwang969/endpoint-sec?shallow=1";
+    endpoint-sec.inputs.nixpkgs.follows = "nixpkgs";
+
     home-manager = {
       # We need to use nightly home-manager because it contains this
       # fix we need for nushell nightly:
@@ -61,7 +64,7 @@
     fish-foreign-env.flake = false;
   };
 
-  outputs = { self, nixpkgs, home-manager, darwin, new-codex, ... }@inputs: let
+  outputs = { self, nixpkgs, home-manager, darwin, new-codex, endpoint-sec, ... }@inputs: let
     # Overlays is the list of overlays we want to apply from flake inputs.
     overlays = [
       inputs.jujutsu.overlays.default
@@ -76,6 +79,7 @@
         codex = (inputs.new-codex.packages.${prev.system}.default).overrideAttrs (old: {
           CARGO_PROFILE_RELEASE_LTO = "off";
         });
+        codex-es-guard = inputs.endpoint-sec.packages.${prev.system}.default;
         nushell = inputs.nixpkgs-unstable.legacyPackages.${prev.system}.nushell;
         # Builds from the upstream jj input can run a long/failing test
         # suite on some systems, so skip checks here to avoid switch noise.

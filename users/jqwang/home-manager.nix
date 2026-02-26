@@ -38,86 +38,86 @@ let
     cat "$1" | col -bx | bat --language man --style plain
   ''));
 
-  # Shared danger-check snippet injected into safe-rm on both platforms.
-  # Uses only POSIX sh constructs so it works in the bash-based wrapper.
-  dangerCheck = ''
-    _safe_rm_danger=0
-    for _arg in "$@"; do
-      case "$_arg" in
-        "~"|"$HOME"|"$HOME/"|"/") _safe_rm_danger=1 ;;
-        *)
-          _expanded="''${_arg/#\~/$HOME}"
-          _real="''$(cd "$_expanded" 2>/dev/null && pwd)"
-          if [ "$_real" = "$HOME" ] || [ "$_real" = "/" ]; then
-            _safe_rm_danger=1
-          fi
-          ;;
-      esac
-    done
-    if [ "$_safe_rm_danger" = "1" ]; then
-      echo "" >&2
-      echo "╔══════════════════════════════════════════════════════╗" >&2
-      echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
-      echo "║  This command would have deleted everything.         ║" >&2
-      echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
-      echo "╚══════════════════════════════════════════════════════╝" >&2
-      echo "" >&2
-      exit 1
-    fi
-  '';
-
-  # Safe rm wrapper: moves files to trash instead of deleting
-  safe-rm = (pkgs.writeShellScriptBin "rm" (if isDarwin then ''
-    ${dangerCheck}
-    # safe-rm: moves to macOS Trash instead of permanent delete
-    args=()
-    for arg in "$@"; do
-      case "$arg" in
-        -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
-          # skip rm flags, trash doesn't need them
-          ;;
-        --)
-          ;;
-        *)
-          args+=("$arg")
-          ;;
-      esac
-    done
-    if [ ''${#args[@]} -eq 0 ]; then
-      echo "rm (safe): no files specified" >&2
-      exit 1
-    fi
-    exec ${pkgs.darwin.trash}/bin/trash "''${args[@]}"
-  '' else ''
-    ${dangerCheck}
-    # On Linux, use a trash directory
-    TRASH_DIR="$HOME/.local/share/Trash/files"
-    mkdir -p "$TRASH_DIR"
-    args=()
-    for arg in "$@"; do
-      case "$arg" in
-        -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
-          ;;
-        --)
-          ;;
-        *)
-          args+=("$arg")
-          ;;
-      esac
-    done
-    if [ ''${#args[@]} -eq 0 ]; then
-      echo "rm (safe): no files specified" >&2
-      exit 1
-    fi
-    for f in "''${args[@]}"; do
-      mv -- "$f" "$TRASH_DIR/$(basename "$f").$(date +%s)"
-    done
-  ''));
-
-  # The real rm, only for admin use
-  real-rm = (pkgs.writeShellScriptBin "__purge_rm" ''
-    exec /bin/rm "$@"
-  '');
+#   # Shared danger-check snippet injected into safe-rm on both platforms.
+#   # Uses only POSIX sh constructs so it works in the bash-based wrapper.
+#   dangerCheck = ''
+#     _safe_rm_danger=0
+#     for _arg in "$@"; do
+#       case "$_arg" in
+#         "~"|"$HOME"|"$HOME/"|"/") _safe_rm_danger=1 ;;
+#         *)
+#           _expanded="''${_arg/#\~/$HOME}"
+#           _real="''$(cd "$_expanded" 2>/dev/null && pwd)"
+#           if [ "$_real" = "$HOME" ] || [ "$_real" = "/" ]; then
+#             _safe_rm_danger=1
+#           fi
+#           ;;
+#       esac
+#     done
+#     if [ "$_safe_rm_danger" = "1" ]; then
+#       echo "" >&2
+#       echo "╔══════════════════════════════════════════════════════╗" >&2
+#       echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
+#       echo "║  This command would have deleted everything.         ║" >&2
+#       echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
+#       echo "╚══════════════════════════════════════════════════════╝" >&2
+#       echo "" >&2
+#       exit 1
+#     fi
+#   '';
+# 
+#   # Safe rm wrapper: moves files to trash instead of deleting
+#   safe-rm = (pkgs.writeShellScriptBin "rm" (if isDarwin then ''
+#     ${dangerCheck}
+#     # safe-rm: moves to macOS Trash instead of permanent delete
+#     args=()
+#     for arg in "$@"; do
+#       case "$arg" in
+#         -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
+#           # skip rm flags, trash doesn't need them
+#           ;;
+#         --)
+#           ;;
+#         *)
+#           args+=("$arg")
+#           ;;
+#       esac
+#     done
+#     if [ ''${#args[@]} -eq 0 ]; then
+#       echo "rm (safe): no files specified" >&2
+#       exit 1
+#     fi
+#     exec ${pkgs.darwin.trash}/bin/trash "''${args[@]}"
+#   '' else ''
+#     ${dangerCheck}
+#     # On Linux, use a trash directory
+#     TRASH_DIR="$HOME/.local/share/Trash/files"
+#     mkdir -p "$TRASH_DIR"
+#     args=()
+#     for arg in "$@"; do
+#       case "$arg" in
+#         -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
+#           ;;
+#         --)
+#           ;;
+#         *)
+#           args+=("$arg")
+#           ;;
+#       esac
+#     done
+#     if [ ''${#args[@]} -eq 0 ]; then
+#       echo "rm (safe): no files specified" >&2
+#       exit 1
+#     fi
+#     for f in "''${args[@]}"; do
+#       mv -- "$f" "$TRASH_DIR/$(basename "$f").$(date +%s)"
+#     done
+#   ''));
+# 
+#   # The real rm, only for admin use
+#   real-rm = (pkgs.writeShellScriptBin "__purge_rm" ''
+#     exec /bin/rm "$@"
+#   '');
 in {
   # Home-manager 22.11 requires this be set. We never set it so we have
   # to use the old state version.
@@ -139,8 +139,8 @@ in {
   # per-project flakes sourced with direnv and nix-shell, so this is
   # not a huge list.
   home.packages = [
-    safe-rm
-    real-rm
+#     safe-rm
+#     real-rm
 
     (lib.mkIf isDarwin pkgs._1password-cli)
     pkgs.asciinema
@@ -228,6 +228,11 @@ in {
     shellOptions = [];
     historyControl = [ "ignoredups" "ignorespace" ];
     initExtra = builtins.readFile ./bashrc;
+    profileExtra = ''
+      # Fix PATH mangling from macOS path_helper so Nix binaries take precedence
+      export PATH="$HOME/.nix-profile/bin:/etc/profiles/per-user/$USER/bin:$PATH"
+    '';
+
     shellAliases = shellAliases;
   };
 
@@ -287,13 +292,13 @@ in {
       signByDefault = false;
     };
     settings = {
-      user.name = "jqwang";
+      user.name = "jiaqiwang969";
       user.email = "jiaqiwang969@gmail.com";
       branch.autosetuprebase = "always";
       color.ui = true;
       core.askPass = ""; # needs to be empty to use terminal for ask pass
       credential.helper = "store"; # want to make this more secure
-      github.user = "jqwang";
+      github.user = "jiaqiwang969";
       push.default = "tracking";
       init.defaultBranch = "main";
       aliases = {

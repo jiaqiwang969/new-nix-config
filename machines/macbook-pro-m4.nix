@@ -80,4 +80,12 @@
   environment.systemPackages = with pkgs; [
     cachix
   ];
+
+  # codex-es-guard: kernel-level file protection for AI agents
+  services.codex-es-guard = {
+    enable = true;
+    user = "jqwang";
+    # Protect all ~/XX-* directories (digit-prefixed)
+    protectedZones = map (d: "/Users/jqwang/${toString d}") (pkgs.lib.range 0 9);
+  };
 }

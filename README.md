@@ -33,14 +33,6 @@ make orb-agent/02
 - **挂载 `.codex` 上下文**：启动时自动将容器内 `~/.codex` 软链接挂载到宿主机（Mac）的 `~/.codex`。使得所有跑在容器里的 Agent 能立刻拥有和宿主机完全同步的 API 秘钥、技能文件（skills）以及历史记忆流。
 - **打通 `8317` 代理端口**：由于你的本地 CLIProxyAPI（API代理）运行在宿主的 `8317` 端口上，Agent 内会自动利用 `socat` 后台服务将容器里的 `localhost:8317` 反向透传到宿主机的 `host.internal:8317`，保证在全封闭容器环境内的模型请求也能经过统一的 API 网关。
 
-## 依赖锁定 (Freeze)
-
-更新所有 Flake 依赖并锁定版本（Freeze）：
-```bash
-nix flake update
-```
-*提示：Nix 默认依靠 `flake.lock` 来冻结 (freeze) 依赖版本，确保无论在哪台机器上构建，都会使用完全一致的依赖包。*
-
 ## 开发与重构经验 (Lessons Learned)
 
 在将构建流程精简化的过程中，我们遇到了几个底层坑，特此记录以防后人踩坑：
@@ -56,3 +48,18 @@ nix flake update
 3. **Nix Flake 的 Git Tracked 盲区**
    - **坑**：重命名 NixOS 目标或添加新的 `.nix` 配置后（如 `nixos-agent-01.nix`），如果直接运行 `nixos-rebuild`，会报 `does not provide attribute...` 找不到该目标的错误。
    - **解法**：当项目根目录是一个 Git 仓库时，Nix **严格只对已经被 Git Tracked (暂存或提交) 的文件进行求值**。必须先 `git add flake.nix machines/*.nix` 才能让 Nix 看见这些新增的配置。
+
+
+  在你的 Codex 系统中，这两种方法并不是冲突的，而是绝佳的互补组合：
+
+  1. 对于稳定服役的长连接 Agent 池 (orb-agent/01, 02)：
+      - 应该使用 Attic Cache 方案。因为这些节点需要稳定的环境定义，启动慢个十几秒没关系，但要求绝对干净，且配置必须与当前
+        的 flake.lock 严格对齐，防止诡异的幻觉 Bug。
+  2. 对于 /freeze 调试、一次性代码执行、短生命周期任务 (orb clone)：
+      - 应该使用 Clone 方案。当 Agent 在尝试执行某个危险操作（如测试一段可能有死循环的 C 代码）或者发生崩溃时，毫秒级
+        Clone 出一个 nixos-debug-base，用完即焚 (orb delete)。这能给 AI 或人类提供无缝的交互体验。
+
+  架构上的完美闭环：
+  你现在 Makefile 里的逻辑其实已经非常前卫了。你完全可以通过 Attic Cache 模式去持续集成 (CI) 更新那个 nixos-debug-base 母
+  体节点；然后用 orb clone 模式去高频消费 (Runtime) 这个母体节点。这就是现代大规模 AI 基础设施（比如 Firecracker MicroVMs
+  预热内存快照）的核心思想。

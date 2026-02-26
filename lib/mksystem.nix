@@ -43,6 +43,9 @@ in systemFunc rec {
     # Snapd on Linux
     (if isLinux then inputs.nix-snapd.nixosModules.default else {})
 
+    # codex-es-guard on Darwin
+    (if darwin then inputs.endpoint-sec.darwinModules.default else {})
+
     machineConfig
     userOSConfig
     home-manager.home-manager {
