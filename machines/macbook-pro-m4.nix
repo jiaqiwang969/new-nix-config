@@ -66,6 +66,20 @@
     fi
     # End Nix
     '';
+  programs.zsh.interactiveShellInit = ''
+    # Safe rm only in interactive shell: move to Trash by default.
+    rm() {
+      if command -v safe-rm >/dev/null 2>&1; then
+        safe-rm "$@"
+      else
+        command rm "$@"
+      fi
+    }
+
+    __purge_rm() {
+      command /bin/rm "$@"
+    }
+  '';
 
   programs.fish.enable = true;
   programs.fish.shellInit = ''

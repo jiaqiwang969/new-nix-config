@@ -38,86 +38,115 @@ let
     cat "$1" | col -bx | bat --language man --style plain
   ''));
 
-#   # Shared danger-check snippet injected into safe-rm on both platforms.
-#   # Uses only POSIX sh constructs so it works in the bash-based wrapper.
-#   dangerCheck = ''
-#     _safe_rm_danger=0
-#     for _arg in "$@"; do
-#       case "$_arg" in
-#         "~"|"$HOME"|"$HOME/"|"/") _safe_rm_danger=1 ;;
-#         *)
-#           _expanded="''${_arg/#\~/$HOME}"
-#           _real="''$(cd "$_expanded" 2>/dev/null && pwd)"
-#           if [ "$_real" = "$HOME" ] || [ "$_real" = "/" ]; then
-#             _safe_rm_danger=1
-#           fi
-#           ;;
-#       esac
-#     done
-#     if [ "$_safe_rm_danger" = "1" ]; then
-#       echo "" >&2
-#       echo "╔══════════════════════════════════════════════════════╗" >&2
-#       echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
-#       echo "║  This command would have deleted everything.         ║" >&2
-#       echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
-#       echo "╚══════════════════════════════════════════════════════╝" >&2
-#       echo "" >&2
-#       exit 1
-#     fi
-#   '';
-# 
-#   # Safe rm wrapper: moves files to trash instead of deleting
-#   safe-rm = (pkgs.writeShellScriptBin "rm" (if isDarwin then ''
-#     ${dangerCheck}
-#     # safe-rm: moves to macOS Trash instead of permanent delete
-#     args=()
-#     for arg in "$@"; do
-#       case "$arg" in
-#         -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
-#           # skip rm flags, trash doesn't need them
-#           ;;
-#         --)
-#           ;;
-#         *)
-#           args+=("$arg")
-#           ;;
-#       esac
-#     done
-#     if [ ''${#args[@]} -eq 0 ]; then
-#       echo "rm (safe): no files specified" >&2
-#       exit 1
-#     fi
-#     exec ${pkgs.darwin.trash}/bin/trash "''${args[@]}"
-#   '' else ''
-#     ${dangerCheck}
-#     # On Linux, use a trash directory
-#     TRASH_DIR="$HOME/.local/share/Trash/files"
-#     mkdir -p "$TRASH_DIR"
-#     args=()
-#     for arg in "$@"; do
-#       case "$arg" in
-#         -f|-r|-rf|-fr|-i|-I|-v|--force|--recursive|--verbose|--interactive*)
-#           ;;
-#         --)
-#           ;;
-#         *)
-#           args+=("$arg")
-#           ;;
-#       esac
-#     done
-#     if [ ''${#args[@]} -eq 0 ]; then
-#       echo "rm (safe): no files specified" >&2
-#       exit 1
-#     fi
-#     for f in "''${args[@]}"; do
-#       mv -- "$f" "$TRASH_DIR/$(basename "$f").$(date +%s)"
-#     done
-#   ''));
-# 
-#   # The real rm, only for admin use
-#   real-rm = (pkgs.writeShellScriptBin "__purge_rm" ''
-#     exec /bin/rm "$@"
-#   '');
+  # Shared danger-check snippet injected into safe-rm on both platforms.
+  # Uses only POSIX sh constructs so it works in the bash-based wrapper.
+  dangerCheck = ''
+    _safe_rm_danger=0
+    for _arg in "$@"; do
+      case "$_arg" in
+        "~"|"$HOME"|"$HOME/"|"/") _safe_rm_danger=1 ;;
+        *)
+          _expanded="''${_arg/#\~/$HOME}"
+          _real="''$(cd "$_expanded" 2>/dev/null && pwd -P || true)"
+          if [ "$_real" = "$HOME" ] || [ "$_real" = "/" ]; then
+            _safe_rm_danger=1
+          fi
+          ;;
+      esac
+    done
+    if [ "$_safe_rm_danger" = "1" ]; then
+      echo "" >&2
+      echo "╔══════════════════════════════════════════════════════╗" >&2
+      echo "║  !! BLOCKED: rm targeting HOME or root directory !!  ║" >&2
+      echo "║  This command would have deleted everything.         ║" >&2
+      echo "║  Use __purge_rm if you truly know what you're doing. ║" >&2
+      echo "╚══════════════════════════════════════════════════════╝" >&2
+      echo "" >&2
+      exit 1
+    fi
+  '';
+
+  # Safe rm wrapper: moves files to trash instead of deleting.
+  # Interactive shells can alias/function-wrap `rm` to this binary.
+  safe-rm = pkgs.writeShellScriptBin "safe-rm" ''
+    set -euo pipefail
+
+    force_mode=0
+    parse_options=1
+    args=()
+    for arg in "$@"; do
+      if [ "$parse_options" -eq 1 ]; then
+        case "$arg" in
+          --)
+            parse_options=0
+            continue
+            ;;
+          -*)
+            case "$arg" in
+              *f*) force_mode=1 ;;
+            esac
+            continue
+            ;;
+        esac
+      fi
+      args+=("$arg")
+    done
+
+    if [ ''${#args[@]} -eq 0 ]; then
+      echo "rm (safe): no files specified" >&2
+      exit 1
+    fi
+
+    ${dangerCheck}
+
+    existing=()
+    missing=0
+    for f in "''${args[@]}"; do
+      if [ -e "$f" ] || [ -L "$f" ]; then
+        existing+=("$f")
+      elif [ "$force_mode" -eq 0 ]; then
+        echo "rm: $f: No such file or directory" >&2
+        missing=1
+      fi
+    done
+
+    if [ ''${#existing[@]} -eq 0 ]; then
+      if [ "$missing" -eq 1 ]; then
+        exit 1
+      fi
+      exit 0
+    fi
+
+    if command -v trash >/dev/null 2>&1; then
+      exec trash "''${existing[@]}"
+    elif command -v gio >/dev/null 2>&1; then
+      exec gio trash "''${existing[@]}"
+    elif command -v trash-put >/dev/null 2>&1; then
+      exec trash-put "''${existing[@]}"
+    fi
+
+    TRASH_DIR="$HOME/.local/share/Trash/files"
+    mkdir -p "$TRASH_DIR"
+    for f in "''${existing[@]}"; do
+      base="$(basename "$f")"
+      stamp="$(date +%Y%m%d-%H%M%S)"
+      dest="$TRASH_DIR/$base.$stamp"
+      i=0
+      while [ -e "$dest" ] || [ -L "$dest" ]; do
+        i=$((i + 1))
+        dest="$TRASH_DIR/$base.$stamp.$i"
+      done
+      if ! mv -- "$f" "$dest" 2>/dev/null; then
+        mv "$f" "$dest"
+      fi
+      echo "trashed: $f -> $dest"
+    done
+  '';
+
+  # The real rm, only for admin use.
+  real-rm = pkgs.writeShellScriptBin "__purge_rm" ''
+    exec /bin/rm "$@"
+  '';
 in {
   # Home-manager 22.11 requires this be set. We never set it so we have
   # to use the old state version.
@@ -139,8 +168,8 @@ in {
   # per-project flakes sourced with direnv and nix-shell, so this is
   # not a huge list.
   home.packages = [
-#     safe-rm
-#     real-rm
+    safe-rm
+    real-rm
 
     (lib.mkIf isDarwin pkgs._1password-cli)
     pkgs.asciinema
@@ -393,7 +422,7 @@ in {
     maxCacheTtl = 31536000;
   };
 
-  xresources.extraConfig = builtins.readFile ./Xresources;
+  xresources.extraConfig = lib.mkIf isLinux (builtins.readFile ./Xresources);
 
   # Make cursor not tiny on HiDPI screens
   home.pointerCursor = lib.mkIf (isLinux && !isWSL) {

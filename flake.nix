@@ -71,6 +71,33 @@
       inputs.zig.overlays.default
 
       (final: prev: rec {
+        # home-manager's neovim module still references makeVimPackageInfo on some channels.
+        # nixpkgs 25.11 removed it, so we provide a compatibility shim.
+        neovimUtils =
+          if prev.neovimUtils ? makeVimPackageInfo then
+            prev.neovimUtils
+          else
+            prev.neovimUtils
+            // {
+              makeVimPackageInfo = plugins:
+                let
+                  normalized = prev.neovimUtils.normalizePlugins plugins;
+                  vimPackage = prev.neovimUtils.normalizedPluginsToVimPackage normalized;
+                  requiredPlugins = prev.vimUtils.requiredPluginsForPackage vimPackage;
+                  pluginConfigs = builtins.filter (cfg: cfg != null) (map (p: p.config or null) normalized);
+                  advisedLua = builtins.filter (cfg: cfg != null) (
+                    map (plugin: plugin.passthru.initLua or null) requiredPlugins
+                  );
+                in
+                {
+                  pluginPython3Packages = map (plugin: plugin.python3Dependencies or (_: [ ])) requiredPlugins;
+                  userPluginViml = pluginConfigs;
+                  runtimeDeps = [ ];
+                  pluginAdvisedLua = advisedLua;
+                  inherit vimPackage;
+                };
+            };
+
         # gh CLI on stable has bugs.
         gh = inputs.nixpkgs-unstable.legacyPackages.${prev.system}.gh;
 
