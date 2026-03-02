@@ -193,6 +193,7 @@ in {
 
     pkgs.rustc
     pkgs.cargo
+    pkgs.rustfmt
 
     pkgs.claude-code
     pkgs.codex
@@ -224,6 +225,7 @@ in {
     EDITOR = "nvim";
     PAGER = "less -FirSwX";
     MANPAGER = "${manpager}/bin/manpager";
+    CARGO_HOME = "${config.home.homeDirectory}/.local/share/cargo";
 
     CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   } // (if isDarwin then {
