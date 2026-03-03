@@ -1,4 +1,8 @@
 { config, pkgs, ... }: {
+  imports = [
+    ../modules/codex-egress-guard.nix
+  ];
+
   # Set in Sept 2024 as part of the macOS Sequoia release.
   system.stateVersion = 5;
 
@@ -111,5 +115,13 @@
     readGateEnabled = true;
     transferGateEnabled = true;
     execGateEnabled = true;
+  };
+
+  services.codex-egress-guard = {
+    enable = true;
+    mode = "enforce";
+    targetUser = "jqwang";
+    allowlistFile = "/Users/jqwang/.codex/es-guard/egress-allowlist.txt";
+    syncIntervalSeconds = 300;
   };
 }
