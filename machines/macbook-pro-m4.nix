@@ -101,5 +101,15 @@
     user = "jqwang";
     # Protect all ~/XX-* directories (digit-prefixed)
     protectedZones = map (d: "/Users/jqwang/${toString d}") (pkgs.lib.range 0 9);
+    # Sensitive Codex state should be AI-readable but not freely exfiltrated.
+    sensitiveZones = [
+      "/Users/jqwang/.codex"
+    ];
+    sensitiveExportAllowZones = [
+      "/Users/jqwang/.codex/es-guard/quarantine"
+    ];
+    readGateEnabled = true;
+    transferGateEnabled = true;
+    execGateEnabled = true;
   };
 }
