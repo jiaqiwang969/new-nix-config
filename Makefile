@@ -10,6 +10,19 @@ ORB_ATTIC_KEY := main:79VGDHuDHe5ct6x6FhBKpRoUL6ybL9D8XedX+7XfDis=
 macbook-pro-m4:
 	NIXPKGS_ALLOW_UNFREE=1 nix build --impure --extra-experimental-features nix-command --extra-experimental-features flakes ".#darwinConfigurations.macbook-pro-m4.system"
 	sudo NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild switch --impure --flake "$$(pwd)#macbook-pro-m4"
+	@echo "Restarting ESGuard menubar app..."
+	@APP_PATH="$$HOME/Applications/ESGuard.app"; \
+	if [ -d "$$APP_PATH" ]; then \
+		/usr/bin/killall ESGuard >/dev/null 2>&1 || true; \
+		/usr/bin/open "$$APP_PATH"; \
+		echo "ESGuard menubar app restarted from $$APP_PATH."; \
+	elif /usr/bin/open -Ra ESGuard >/dev/null 2>&1; then \
+		/usr/bin/killall ESGuard >/dev/null 2>&1 || true; \
+		/usr/bin/open -a ESGuard; \
+		echo "ESGuard menubar app restarted via LaunchServices lookup."; \
+	else \
+		echo "ESGuard.app not found; skip restart."; \
+	fi
 
 # =========================================================================
 # 2. 部署并更新本地 Cache 节点 (nixos-dev)
