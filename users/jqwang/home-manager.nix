@@ -330,6 +330,7 @@ in {
       core.askPass = ""; # needs to be empty to use terminal for ask pass
       credential.helper = "store"; # want to make this more secure
       github.user = "jiaqiwang969";
+      url."git@github.com:".insteadOf = "https://github.com/";
       push.default = "tracking";
       init.defaultBranch = "main";
       aliases = {
