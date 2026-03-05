@@ -291,9 +291,19 @@ in {
       "source ${inputs.theme-bobthefish}/functions/fish_title.fish"
       (builtins.readFile ./config.fish)
       "set -g SHELL ${pkgs.fish}/bin/fish"
-      # Resolve op:// secrets via 1Password CLI
+      # Resolve op:// secrets via 1Password CLI on demand.
       ''
-        if command -q op
+        function load_ai_secrets --description "Load OPENAI/HF/ANTHROPIC secrets from 1Password CLI"
+          if not command -q op
+            echo "op CLI not found in PATH" >&2
+            return 127
+          end
+
+          if not op account list >/dev/null 2>&1
+            echo "1Password CLI is not signed in (run: op signin)" >&2
+            return 1
+          end
+
           set -gx OPENAI_API_KEY (op read "op://Personal/OpenAPI_Personal/credential" 2>/dev/null)
           set -gx HF_TOKEN (op read "op://Personal/HuggingFace/credential" 2>/dev/null)
           set -gx ANTHROPIC_AUTH_TOKEN (op read "op://Personal/Anthropic/api_key" 2>/dev/null)

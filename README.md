@@ -13,6 +13,7 @@ make macbook-pro-m4
 - `darwin-rebuild switch` 应用系统配置；
 - 调用 `endpoint-sec/codex-es-guard/menubar-app` 的 `make install`；
 - 自动重新安装并拉起 `ESGuard.app`（不再需要额外手动安装/重启）。
+- 需要 API 环境变量时手动运行：`load_ai_secrets`。
 
 ### 2. 初始化缓存与开发节点 (nixos-dev)
 创建/更新 `nixos-dev`，启动内部 Attic 缓存服务，并自动将整个 Nix Store 推送至 cache 中：
