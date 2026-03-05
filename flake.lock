@@ -28,11 +28,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1772596084,
-        "narHash": "sha256-eoJL6cGSBNAymFtiUJL78c5OYanmBUQVPKNfZYS/EkI=",
+        "lastModified": 1772681031,
+        "narHash": "sha256-3WzxdgqAXptMz5YaHZRpro/Ff6biOq389fDnHrh5amQ=",
         "owner": "jiaqiwang969",
         "repo": "endpoint-sec",
-        "rev": "7e781d44e62f56608bf18a73b3179c248358c1c6",
+        "rev": "c23516529d72e2637cd1fbdbb1962d5fd11cd970",
         "type": "github"
       },
       "original": {
