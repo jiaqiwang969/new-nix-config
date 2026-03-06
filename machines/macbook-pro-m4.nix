@@ -1,6 +1,6 @@
 { config, pkgs, ... }: {
   imports = [
-    ../modules/codex-egress-guard.nix
+    ../modules/agentsmith-egress-guard.nix
   ];
 
   # Set in Sept 2024 as part of the macOS Sequoia release.
@@ -99,8 +99,8 @@
     cachix
   ];
 
-  # codex-es-guard: kernel-level file protection for AI agents
-  services.codex-es-guard = {
+  # AgentSmith-RS: kernel-level file protection for AI agents
+  services.agentsmith-rs = {
     enable = true;
     user = "jqwang";
     # Protect all ~/XX-* directories (digit-prefixed)
@@ -110,18 +110,18 @@
       "/Users/jqwang/.codex"
     ];
     sensitiveExportAllowZones = [
-      "/Users/jqwang/.codex/es-guard/quarantine"
+      "/Users/jqwang/.agentsmith-rs/guard/quarantine"
     ];
     readGateEnabled = true;
     transferGateEnabled = true;
     execGateEnabled = true;
   };
 
-  services.codex-egress-guard = {
+  services.agentsmith-egress-guard = {
     enable = true;
     mode = "enforce";
     targetUser = "jqwang";
-    allowlistFile = "/Users/jqwang/.codex/es-guard/egress-allowlist.txt";
+    allowlistFile = "/Users/jqwang/.agentsmith-rs/guard/egress-allowlist.txt";
     syncIntervalSeconds = 300;
   };
 }

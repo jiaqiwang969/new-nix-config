@@ -11,8 +11,8 @@ make macbook-pro-m4
 ```
 该命令会顺序完成：
 - `darwin-rebuild switch` 应用系统配置；
-- 调用 `endpoint-sec/codex-es-guard/menubar-app` 的 `make install`；
-- 自动重新安装并拉起 `ESGuard.app`（不再需要额外手动安装/重启）。
+- 调用 `endpoint-sec/agentsmith-rs/menubar-app` 的 `make install`；
+- 自动重新安装并拉起 `AgentSmithMenuBar.app`（不再需要额外手动安装/重启）。
 - 需要 API 环境变量时手动运行：`load_ai_secrets`。
 
 ### 2. 初始化缓存与开发节点 (nixos-dev)

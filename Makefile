@@ -1,7 +1,7 @@
 # 极简 NixOS / Darwin 部署 Makefile
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 ORB_NIXCONFIG := /mnt/mac$(MAKEFILE_DIR)
-ESGUARD_MENUBAR_DIR := $(abspath $(MAKEFILE_DIR)/../endpoint-sec/codex-es-guard/menubar-app)
+AGENTSMITH_MENUBAR_DIR := $(abspath $(MAKEFILE_DIR)/../endpoint-sec/agentsmith-rs/menubar-app)
 
 ORB_ATTIC_KEY := main:79VGDHuDHe5ct6x6FhBKpRoUL6ybL9D8XedX+7XfDis=
 
@@ -11,8 +11,8 @@ ORB_ATTIC_KEY := main:79VGDHuDHe5ct6x6FhBKpRoUL6ybL9D8XedX+7XfDis=
 macbook-pro-m4:
 	NIXPKGS_ALLOW_UNFREE=1 nix build --impure --extra-experimental-features nix-command --extra-experimental-features flakes ".#darwinConfigurations.macbook-pro-m4.system"
 	sudo NIXPKGS_ALLOW_UNFREE=1 ./result/sw/bin/darwin-rebuild switch --impure --flake "$$(pwd)#macbook-pro-m4"
-	@echo "Building and installing ESGuard menubar app..."
-	$(MAKE) -C "$(ESGUARD_MENUBAR_DIR)" install
+	@echo "Building and installing AgentSmith-RS menubar app..."
+	$(MAKE) -C "$(AGENTSMITH_MENUBAR_DIR)" install
 
 # =========================================================================
 # 2. 部署并更新本地 Cache 节点 (nixos-dev)

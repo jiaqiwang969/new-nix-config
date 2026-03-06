@@ -1,5 +1,25 @@
 {
   "nodes": {
+    "agentsmith-rs": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772808377,
+        "narHash": "sha256-sp/yz9+g8QO980+BGrPTdJaXMBYmsQsVomvtkiI+XQg=",
+        "owner": "jiaqiwang969",
+        "repo": "endpoint-sec",
+        "rev": "f2bc307605db98e23c1352c8b38e6f1ad71d7cb4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jiaqiwang969",
+        "repo": "endpoint-sec",
+        "type": "github"
+      }
+    },
     "darwin": {
       "inputs": {
         "nixpkgs": [
@@ -18,26 +38,6 @@
         "owner": "nix-darwin",
         "ref": "nix-darwin-25.11",
         "repo": "nix-darwin",
-        "type": "github"
-      }
-    },
-    "endpoint-sec": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1772804804,
-        "narHash": "sha256-hawf8qsOfkqkyNffUwLHgwCT/Z1BBxVg5itXgBs3xTE=",
-        "owner": "jiaqiwang969",
-        "repo": "endpoint-sec",
-        "rev": "7e755cab8051ed05e39c39963477fd829c266d5a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "jiaqiwang969",
-        "repo": "endpoint-sec",
         "type": "github"
       }
     },
@@ -446,8 +446,8 @@
     },
     "root": {
       "inputs": {
+        "agentsmith-rs": "agentsmith-rs",
         "darwin": "darwin",
-        "endpoint-sec": "endpoint-sec",
         "fish-foreign-env": "fish-foreign-env",
         "fish-fzf": "fish-fzf",
         "home-manager": "home-manager",
